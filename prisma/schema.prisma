@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  pin       String   // Hashed PIN
+  role      String   // ADMIN, CAIXA
+  sessions  CashierSession[]
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  name         String
+  description  String?
+  category     String
+  brand        String?
+  price        Float
+  costPrice    Float
+  stock        Float    @default(0)
+  minStock     Float    @default(0)
+  unit         String   @default("UN") // UN, PCT, etc
+  expiryDate   DateTime?
+  batch        String?
+  observations String?
+  movements    StockMovement[]
+  saleItems    SaleItem[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  type        String   // ENTRADA_COMPRA, SAIDA_VENDA, AJUSTE, SANGRIA, SUPRIMENTO
+  quantity    Float
+  reason      String?
+  createdAt   DateTime @default(now())
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String?
+  email        String?
+  observations String?
+  sales        Sale[]
+  createdAt    DateTime @default(now())
+}
+
+model CashierSession {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  openedAt     DateTime @default(now())
+  closedAt     DateTime?
+  openingBalance Float
+  closingBalance Float?
+  totalSales     Float    @default(0)
+  totalSuprimento Float   @default(0)
+  totalSangria    Float   @default(0)
+  status       String   @default("OPEN") // OPEN, CLOSED
+  sales        Sale[]
+  transactions CashierTransaction[]
+}
+
+model CashierTransaction {
+  id               String         @id @default(cuid())
+  sessionId        String
+  session          CashierSession @relation(fields: [sessionId], references: [id])
+  type             String         // SUPRIMENTO, SANGRIA
+  amount           Float
+  reason           String?
+  createdAt        DateTime       @default(now())
+}
+
+model Sale {
+  id             String         @id @default(cuid())
+  sessionId      String
+  session        CashierSession @relation(fields: [sessionId], references: [id])
+  customerId     String?
+  customer       Customer?      @relation(fields: [customerId], references: [id])
+  total          Float
+  discount       Float          @default(0)
+  paymentMethod  String         // DINHEIRO, PIX, CARTAO, MULTIPLO
+  status         String         @default("COMPLETED")
+  items          SaleItem[]
+  payments       Payment[]
+  createdAt      DateTime       @default(now())
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Float
+  price     Float   // Price at the time of sale
+}
+
+model Payment {
+  id      String @id @default(cuid())
+  saleId  String
+  sale    Sale   @relation(fields: [saleId], references: [id])
+  method  String // DINHEIRO, PIX, CARTAO
+  amount  Float
+}
+
+model AccountsPayable {
+  id          String    @id @default(cuid())
+  description String
+  amount      Float
+  dueDate     DateTime
+  paidAt      DateTime?
+  status      String    @default("PENDING") // PENDING, PAID
+  category    String?
+  createdAt   DateTime  @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String
+  details   String?
+  createdAt DateTime @default(now())
+}
