@@ -8,13 +8,16 @@ interface CartItem {
 }
 
 interface Payment {
-  method: 'DINHEIRO' | 'PIX' | 'CARTAO';
+  method: 'DINHEIRO' | 'PIX' | 'CARTAO' | 'CHEQUE' | 'OUTROS';
   amount: number;
 }
 
 interface POSState {
   cart: CartItem[];
   discount: number;
+  shipping: number;
+  observation: string;
+  showObservationOnReceipt: boolean;
   customerId: string | null;
   payments: Payment[];
   
@@ -22,6 +25,9 @@ interface POSState {
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   setDiscount: (discount: number) => void;
+  setShipping: (shipping: number) => void;
+  setObservation: (observation: string) => void;
+  setShowObservationOnReceipt: (show: boolean) => void;
   setCustomerId: (id: string | null) => void;
   addPayment: (payment: Payment) => void;
   removePayment: (index: number) => void;
@@ -35,6 +41,9 @@ interface POSState {
 export const usePOSStore = create<POSState>((set, get) => ({
   cart: [],
   discount: 0,
+  shipping: 0,
+  observation: '',
+  showObservationOnReceipt: false,
   customerId: null,
   payments: [],
 
@@ -72,6 +81,9 @@ export const usePOSStore = create<POSState>((set, get) => ({
   },
 
   setDiscount: (discount) => set({ discount }),
+  setShipping: (shipping) => set({ shipping }),
+  setObservation: (observation) => set({ observation }),
+  setShowObservationOnReceipt: (showObservationOnReceipt) => set({ showObservationOnReceipt }),
   setCustomerId: (id) => set({ customerId: id }),
 
   addPayment: (payment) => {
@@ -82,14 +94,22 @@ export const usePOSStore = create<POSState>((set, get) => ({
     set({ payments: get().payments.filter((_, i) => i !== index) });
   },
 
-  clearPOS: () => set({ cart: [], discount: 0, customerId: null, payments: [] }),
+  clearPOS: () => set({ 
+    cart: [], 
+    discount: 0, 
+    shipping: 0, 
+    observation: '', 
+    showObservationOnReceipt: false, 
+    customerId: null, 
+    payments: [] 
+  }),
 
   getSubtotal: () => {
     return get().cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   },
 
   getTotal: () => {
-    return get().getSubtotal() - get().discount;
+    return get().getSubtotal() - get().discount + get().shipping;
   },
 
   getRemainingBalance: () => {

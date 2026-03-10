@@ -24,7 +24,8 @@ export default function Inventory() {
     minStock: 5,
     price: 0,
     costPrice: 0,
-    unit: 'UN'
+    unit: 'UN',
+    photo: ''
   });
 
   const { data: products, isLoading } = useQuery({
@@ -50,7 +51,8 @@ export default function Inventory() {
         minStock: 5,
         price: 0,
         costPrice: 0,
-        unit: 'UN'
+        unit: 'UN',
+        photo: ''
       });
     }
   });
@@ -195,6 +197,16 @@ export default function Inventory() {
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">URL da Foto</label>
+                  <input 
+                    type="text"
+                    value={newProduct.photo}
+                    onChange={e => setNewProduct({...newProduct, photo: e.target.value})}
+                    placeholder="https://exemplo.com/foto.jpg"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                  />
+                </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Nome do Produto</label>
                   <input 

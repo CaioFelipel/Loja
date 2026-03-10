@@ -30,6 +30,7 @@ model Product {
   stock        Float    @default(0)
   minStock     Float    @default(0)
   unit         String   @default("UN") // UN, PCT, etc
+  photo        String?  // New field
   expiryDate   DateTime?
   batch        String?
   observations String?
@@ -51,9 +52,11 @@ model StockMovement {
 
 model Customer {
   id           String   @id @default(cuid())
+  code         String?  @unique // New field
   name         String
   phone        String?
   email        String?
+  address      String?  // New field
   observations String?
   sales        Sale[]
   createdAt    DateTime @default(now())
@@ -93,7 +96,10 @@ model Sale {
   customer       Customer?      @relation(fields: [customerId], references: [id])
   total          Float
   discount       Float          @default(0)
-  paymentMethod  String         // DINHEIRO, PIX, CARTAO, MULTIPLO
+  shipping       Float          @default(0) // New field
+  observation    String?        // New field
+  showObservationOnReceipt Boolean @default(false) // New field
+  paymentMethod  String         // DINHEIRO, PIX, CARTAO, MULTIPLO, etc
   status         String         @default("COMPLETED")
   items          SaleItem[]
   payments       Payment[]

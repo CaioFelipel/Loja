@@ -20,6 +20,8 @@ export default function Customers() {
     name: '',
     email: '',
     phone: '',
+    code: '',
+    address: '',
     observations: ''
   });
 
@@ -38,7 +40,7 @@ export default function Customers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setShowAddModal(false);
-      setNewCustomer({ name: '', email: '', phone: '', observations: '' });
+      setNewCustomer({ name: '', email: '', phone: '', code: '', address: '', observations: '' });
     }
   });
 
@@ -134,13 +136,35 @@ export default function Customers() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Código do Cliente</label>
+                  <input 
+                    type="text"
+                    value={newCustomer.code}
+                    onChange={e => setNewCustomer({...newCustomer, code: e.target.value})}
+                    placeholder="Ex: CLI001"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Nome Completo</label>
+                  <input 
+                    required
+                    type="text"
+                    value={newCustomer.name}
+                    onChange={e => setNewCustomer({...newCustomer, name: e.target.value})}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Nome Completo</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Endereço</label>
                 <input 
-                  required
                   type="text"
-                  value={newCustomer.name}
-                  onChange={e => setNewCustomer({...newCustomer, name: e.target.value})}
+                  value={newCustomer.address}
+                  onChange={e => setNewCustomer({...newCustomer, address: e.target.value})}
+                  placeholder="Rua, Número, Bairro, Cidade"
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                 />
               </div>

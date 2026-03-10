@@ -26,6 +26,7 @@ export const ProductSchema = z.object({
   stock: z.number().default(0),
   minStock: z.number().default(0),
   unit: z.string().default('UN'),
+  photo: z.string().optional().nullable(),
   expiryDate: z.string().optional().nullable(),
   batch: z.string().optional().nullable(),
   observations: z.string().optional(),
@@ -35,9 +36,11 @@ export type ProductInput = z.infer<typeof ProductSchema>;
 
 // Customer
 export const CustomerSchema = z.object({
+  code: z.string().optional().nullable(),
   name: z.string().min(1, 'Nome é obrigatório'),
   phone: z.string().optional(),
   email: z.string().email('Email inválido').optional().or(z.literal('')),
+  address: z.string().optional().nullable(),
   observations: z.string().optional(),
 });
 
@@ -70,6 +73,9 @@ export const SaleSchema = z.object({
   items: z.array(SaleItemSchema).min(1, 'Pelo menos um item é necessário'),
   payments: z.array(PaymentSchema).min(1, 'Pelo menos um pagamento é necessário'),
   discount: z.number().default(0),
+  shipping: z.number().default(0),
+  observation: z.string().optional().nullable(),
+  showObservationOnReceipt: z.boolean().default(false),
 });
 
 export type SaleInput = z.infer<typeof SaleSchema>;

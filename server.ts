@@ -206,12 +206,18 @@ async function startServer() {
     if (!session) return res.status(400).json({ error: 'Caixa fechado. Abra o caixa para vender.' });
 
     const sale = await prisma.$transaction(async (tx) => {
+      const subtotal = result.data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+      const total = subtotal - result.data.discount + result.data.shipping;
+
       const newSale = await tx.sale.create({
         data: {
           sessionId: session.id,
           customerId: result.data.customerId,
-          total: result.data.items.reduce((acc, item) => acc + (item.price * item.quantity), 0) - result.data.discount,
+          total: total,
           discount: result.data.discount,
+          shipping: result.data.shipping,
+          observation: result.data.observation,
+          showObservationOnReceipt: result.data.showObservationOnReceipt,
           paymentMethod: result.data.payments.length > 1 ? 'MULTIPLO' : result.data.payments[0].method,
           items: {
             create: result.data.items.map(item => ({
@@ -227,7 +233,10 @@ async function startServer() {
             }))
           }
         },
-        include: { items: true }
+        include: { 
+          items: { include: { product: true } },
+          customer: true 
+        }
       });
 
       // Update stock
