@@ -13,6 +13,7 @@ import {
   QrCode,
   Printer,
   X,
+  ArrowLeft,
   ShoppingCart,
   Truck,
   Tag,
@@ -161,6 +162,14 @@ export default function POS() {
     );
   }
 
+  const closeCashierMutation = useMutation({
+    mutationFn: () => fetch('/api/cashier/close', { method: 'POST' }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashier-session'] });
+      navigate('/');
+    }
+  });
+
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
@@ -168,15 +177,36 @@ export default function POS() {
       {/* Left Side: Product Selection */}
       <div className="flex-1 flex flex-col min-h-0">
         <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por item ou código"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
-            />
+          <div className="relative flex-1 w-full flex gap-2 lg:gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar item..."
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all text-sm lg:text-base"
+              />
+            </div>
+            <button 
+              disabled={closeCashierMutation.isPending}
+              onClick={() => {
+                if (confirm('Deseja realmente fechar o caixa?')) {
+                  closeCashierMutation.mutate();
+                }
+              }}
+              className="px-4 lg:px-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-red-500 font-bold hover:bg-red-500/10 transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
+            >
+              <X className="w-5 h-5" />
+              <span className="hidden sm:inline">{closeCashierMutation.isPending ? 'Fechando...' : 'Fechar Caixa'}</span>
+            </button>
+            <button 
+              onClick={() => navigate('/dashboard')}
+              className="px-4 lg:px-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-400 font-bold hover:bg-zinc-800 transition-all flex items-center gap-2 whitespace-nowrap"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="hidden sm:inline">Voltar</span>
+            </button>
           </div>
           <button 
             onClick={() => setActiveTab(activeTab === 'products' ? 'cart' : 'products')}

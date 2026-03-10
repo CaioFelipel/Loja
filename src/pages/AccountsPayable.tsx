@@ -89,48 +89,48 @@ export default function AccountsPayable() {
 
       <div className="grid grid-cols-1 gap-4">
         {accounts?.map((account: any) => (
-          <div key={account.id} className={`bg-zinc-900 border ${account.status === 'PAID' ? 'border-zinc-800 opacity-60' : 'border-zinc-800'} rounded-2xl p-6 flex items-center justify-between group transition-all`}>
-            <div className="flex items-center gap-6">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+          <div key={account.id} className={`bg-zinc-900 border ${account.status === 'PAID' ? 'border-zinc-800 opacity-60' : 'border-zinc-800'} rounded-2xl p-4 lg:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group transition-all`}>
+            <div className="flex items-center gap-4 lg:gap-6">
+              <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center shrink-0 ${
                 account.status === 'PAID' ? 'bg-zinc-800 text-zinc-500' : 'bg-red-500/10 text-red-500'
               }`}>
-                <CreditCard className="w-6 h-6" />
+                <CreditCard className="w-5 h-5 lg:w-6 lg:h-6" />
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">{account.description}</h3>
-                <div className="flex items-center gap-4 mt-1">
-                  <span className="text-sm text-zinc-500 flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    Vencimento: {format(new Date(account.dueDate), "dd 'de' MMM", { locale: ptBR })}
+              <div className="min-w-0">
+                <h3 className="text-base lg:text-lg font-bold text-white truncate">{account.description}</h3>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                  <span className="text-xs text-zinc-500 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {format(new Date(account.dueDate), "dd 'de' MMM", { locale: ptBR })}
                   </span>
-                  <span className="text-sm text-zinc-500 flex items-center gap-1 uppercase font-bold text-[10px] tracking-widest">
+                  <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">
                     {account.category || 'Geral'}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-12">
-              <div className="text-right">
-                <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-1">Valor</p>
-                <p className="text-xl font-bold text-white">R$ {account.amount.toFixed(2)}</p>
+            <div className="flex items-center justify-between sm:justify-end gap-4 lg:gap-12 pt-4 sm:pt-0 border-t sm:border-t-0 border-zinc-800">
+              <div className="text-left sm:text-right">
+                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Valor</p>
+                <p className="text-lg lg:text-xl font-bold text-white">R$ {account.amount.toFixed(2)}</p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 lg:gap-3">
                 {account.status === 'PAID' ? (
-                  <div className="flex items-center gap-2 text-cherry font-bold text-sm bg-cherry/10 px-4 py-2 rounded-xl">
+                  <div className="flex items-center gap-2 text-cherry font-bold text-xs lg:text-sm bg-cherry/10 px-3 lg:px-4 py-2 rounded-xl">
                     <CheckCircle2 className="w-4 h-4" />
                     Pago
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2 text-amber-500 font-bold text-sm bg-amber-500/10 px-4 py-2 rounded-xl">
+                    <div className="hidden xs:flex items-center gap-2 text-amber-500 font-bold text-xs lg:text-sm bg-amber-500/10 px-3 lg:px-4 py-2 rounded-xl">
                       <Clock className="w-4 h-4" />
                       Pendente
                     </div>
                     <button 
                       onClick={() => handlePay(account.id)}
-                      className="bg-zinc-800 hover:bg-cherry hover:text-white text-zinc-300 font-bold px-6 py-2 rounded-xl transition-all"
+                      className="bg-zinc-800 hover:bg-cherry hover:text-white text-zinc-300 font-bold px-4 lg:px-6 py-2 rounded-xl transition-all text-sm"
                     >
                       Baixar
                     </button>

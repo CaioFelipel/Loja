@@ -48,6 +48,13 @@ export default function Dashboard() {
     }
   });
 
+  const closeCashierMutation = useMutation({
+    mutationFn: () => fetch('/api/cashier/close', { method: 'POST' }).then(res => res.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashier-session'] });
+    }
+  });
+
   const handleOpenCashier = (e: React.FormEvent) => {
     e.preventDefault();
     openCashierMutation.mutate(openingBalance);
@@ -96,20 +103,20 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {cards.map((card, i) => {
           const Icon = card.icon;
           return (
-            <div key={i} className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-xl ${card.bg}`}>
-                  <Icon className={`w-6 h-6 ${card.color}`} />
+            <div key={i} className="bg-zinc-900 border border-zinc-800 p-4 lg:p-6 rounded-2xl shadow-sm">
+              <div className="flex items-center justify-between mb-3 lg:mb-4">
+                <div className={`p-2 lg:p-3 rounded-xl ${card.bg}`}>
+                  <Icon className={`w-5 h-5 lg:w-6 lg:h-6 ${card.color}`} />
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-zinc-600" />
               </div>
-              <p className="text-zinc-400 text-sm font-medium">{card.label}</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{card.value}</h3>
-              <p className="text-zinc-500 text-xs mt-2">{card.sub}</p>
+              <p className="text-zinc-400 text-xs lg:text-sm font-medium">{card.label}</p>
+              <h3 className="text-xl lg:text-2xl font-bold text-white mt-1">{card.value}</h3>
+              <p className="text-zinc-500 text-[10px] lg:text-xs mt-2">{card.sub}</p>
             </div>
           );
         })}
@@ -165,13 +172,27 @@ export default function Dashboard() {
                   <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               ) : (
-                <button 
-                  onClick={() => navigate('/pos')}
-                  className="btn-cherry !justify-between !text-sm !font-medium !px-4 group"
-                >
-                  Caixa Aberto - Ir ao PDV
-                  <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                <>
+                  <button 
+                    onClick={() => navigate('/pos')}
+                    className="btn-cherry !justify-between !text-sm !font-medium !px-4 group"
+                  >
+                    Caixa Aberto - Ir ao PDV
+                    <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                  <button 
+                    disabled={closeCashierMutation.isPending}
+                    onClick={() => {
+                      if (confirm('Deseja realmente fechar o caixa?')) {
+                        closeCashierMutation.mutate();
+                      }
+                    }}
+                    className="btn-zinc !justify-between !text-sm !font-medium !px-4 group border-red-500/50 hover:bg-red-500/10 text-red-500"
+                  >
+                    {closeCashierMutation.isPending ? 'Fechando...' : 'Fechar Caixa'}
+                    <X className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </>
               )}
               <button 
                 onClick={() => navigate('/pos')}

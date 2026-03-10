@@ -113,6 +113,15 @@ async function startServer() {
     res.json(product);
   });
 
+  app.get('/api/products/:id/history', authenticate, async (req, res) => {
+    const history = await prisma.stockMovement.findMany({
+      where: { productId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json(history);
+  });
+
   // --- Customer Routes ---
   app.get('/api/customers', authenticate, async (req, res) => {
     const customers = await prisma.customer.findMany({ orderBy: { name: 'asc' } });
@@ -164,7 +173,7 @@ async function startServer() {
       data: {
         status: 'CLOSED',
         closedAt: new Date(),
-        closingBalance: session.openingBalance + session.totalSales + session.totalSuprimento - session.totalSangria
+        closingBalance: (session.openingBalance || 0) + (session.totalSales || 0) + (session.totalSuprimento || 0) - (session.totalSangria || 0)
       }
     });
     await audit(req.user.id, 'CLOSE_CASHIER', 'CASHIER_SESSION', closed);
@@ -276,6 +285,55 @@ async function startServer() {
     res.json(sales);
   });
 
+  app.post('/api/sales/:id/void', authenticate, async (req: any, res) => {
+    try {
+      const sale = await prisma.sale.findUnique({
+        where: { id: req.params.id },
+        include: { items: true }
+      });
+
+      if (!sale) return res.status(404).json({ error: 'Venda não encontrada' });
+      if (sale.status === 'VOIDED') return res.status(400).json({ error: 'Venda já estornada' });
+
+      const voidedSale = await prisma.$transaction(async (tx) => {
+        // Update sale status
+        const updatedSale = await tx.sale.update({
+          where: { id: sale.id },
+          data: { status: 'VOIDED' }
+        });
+
+        // Restore stock
+        for (const item of sale.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } }
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: 'ENTRADA_ESTORNO',
+              quantity: item.quantity,
+              reason: `Estorno da Venda #${sale.id}`,
+            }
+          });
+        }
+
+        // Update session total (only if it's the current session or we want to reflect it in the session it happened)
+        await tx.cashierSession.update({
+          where: { id: sale.sessionId },
+          data: { totalSales: { decrement: sale.total } }
+        });
+
+        return updatedSale;
+      });
+
+      await audit(req.user.id, 'VOID_SALE', 'SALE', voidedSale);
+      res.json(voidedSale);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- Accounts Payable ---
   app.get('/api/accounts-payable', authenticate, async (req, res) => {
     const accounts = await prisma.accountsPayable.findMany({ orderBy: { dueDate: 'asc' } });
@@ -343,7 +401,10 @@ async function startServer() {
     today.setHours(0, 0, 0, 0);
 
     const salesToday = await prisma.sale.aggregate({
-      where: { createdAt: { gte: today } },
+      where: { 
+        createdAt: { gte: today },
+        status: { not: 'VOIDED' }
+      },
       _sum: { total: true },
       _count: true
     });
@@ -357,11 +418,39 @@ async function startServer() {
       _sum: { amount: true }
     });
 
+    const salesByCategory = await prisma.saleItem.groupBy({
+      by: ['productId'],
+      where: { sale: { status: { not: 'VOIDED' } } },
+      _sum: { quantity: true, price: true },
+    });
+
+    // Get product categories for the grouped items
+    const products = await prisma.product.findMany({
+      select: { id: true, category: true }
+    });
+
+    const categoryStats: Record<string, number> = {};
+    salesByCategory.forEach(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (product) {
+        categoryStats[product.category] = (categoryStats[product.category] || 0) + (item._sum.price || 0);
+      }
+    });
+
+    const salesByPayment = await prisma.sale.groupBy({
+      by: ['paymentMethod'],
+      where: { status: { not: 'VOIDED' } },
+      _sum: { total: true },
+      _count: true
+    });
+
     res.json({
       salesToday: salesToday._sum.total || 0,
       salesCountToday: salesToday._count || 0,
       lowStockCount: lowStock,
-      pendingPayables: pendingPayables._sum.amount || 0
+      pendingPayables: pendingPayables._sum.amount || 0,
+      categoryStats,
+      salesByPayment
     });
   });
 
