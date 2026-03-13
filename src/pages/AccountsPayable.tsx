@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { apiFetch } from '../lib/api';
 
 export default function AccountsPayable() {
   const queryClient = useQueryClient();
@@ -25,12 +26,12 @@ export default function AccountsPayable() {
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ['accounts-payable'],
-    queryFn: () => fetch('/api/accounts-payable').then(res => res.json())
+    queryFn: () => apiFetch('/api/accounts-payable').then(res => res.json())
   });
 
   const addMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch('/api/accounts-payable', {
+      apiFetch('/api/accounts-payable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -54,7 +55,7 @@ export default function AccountsPayable() {
 
   const payMutation = useMutation({
     mutationFn: ({ id, fromCashier }: { id: string, fromCashier: boolean }) =>
-      fetch(`/api/accounts-payable/${id}/pay`, {
+      apiFetch(`/api/accounts-payable/${id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromCashier })

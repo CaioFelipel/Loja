@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { LogIn } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const setUser = useAuthStore((state) => state.setUser);
+  const setSession = useAuthStore((state) => state.setSession);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,7 +16,7 @@ export default function Login() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, pin }),
@@ -24,7 +25,7 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
 
-      setUser(data.user);
+      setSession(data.user, data.token || null);
     } catch (err: any) {
       setError(err.message);
     } finally {

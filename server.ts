@@ -32,7 +32,9 @@ async function startServer() {
 
   // --- Middleware ---
   const authenticate = (req: any, res: any, next: any) => {
-    const token = req.cookies.token;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const token = bearerToken || req.cookies.token;
     if (!token) return res.status(401).json({ error: 'Não autorizado' });
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -67,10 +69,19 @@ async function startServer() {
       if (!valid) return res.status(401).json({ error: 'Credenciais inválidas' });
 
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '12h' });
-      res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' });
+      const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: isHttps,
+        sameSite: isHttps ? 'none' : 'lax',
+        maxAge: 12 * 60 * 60 * 1000,
+      });
       
       await audit(user.id, 'LOGIN', 'USER');
-      res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+      res.json({
+        user: { id: user.id, email: user.email, role: user.role, name: user.name },
+        token,
+      });
     } catch (error: any) {
       console.error('Login error:', error);
       res.status(500).json({ error: 'Erro interno no servidor: ' + error.message });

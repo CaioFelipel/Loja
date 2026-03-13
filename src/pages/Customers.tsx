@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { apiFetch } from '../lib/api';
 
 export default function Customers() {
   const queryClient = useQueryClient();
@@ -32,12 +33,12 @@ export default function Customers() {
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => fetch('/api/customers').then(res => res.json())
+    queryFn: () => apiFetch('/api/customers').then(res => res.json())
   });
 
   const addMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch('/api/customers', {
+      apiFetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
