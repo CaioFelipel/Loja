@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { 
   Plus, 
   Search, 
@@ -9,8 +10,12 @@ import {
   AlertCircle,
   Package,
   ArrowUpDown,
-  X
+  X,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Inventory() {
   const queryClient = useQueryClient();
@@ -45,6 +50,7 @@ export default function Inventory() {
       }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Produto adicionado com sucesso!');
       setShowAddModal(false);
       setNewProduct({
         name: '',
@@ -69,8 +75,12 @@ export default function Inventory() {
       }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Produto atualizado com sucesso!');
       setShowEditModal(false);
       setSelectedProduct(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     }
   });
 
@@ -85,10 +95,51 @@ export default function Inventory() {
     addMutation.mutate(newProduct);
   };
 
-  const filteredProducts = products?.filter((p: any) => 
+  const filteredProducts = Array.isArray(products) ? products.filter((p: any) => 
     p.name.toLowerCase().includes(search.toLowerCase()) || 
     p.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  ) : [];
+
+  const handleExportCSV = () => {
+    window.location.href = '/api/reports/export/products';
+    toast.success('Exportação CSV iniciada...');
+  };
+
+  const handleExportPDF = () => {
+    if (!products || products.length === 0) {
+      toast.error('Não há dados para exportar');
+      return;
+    }
+
+    toast.info('Gerando PDF...');
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Relatório de Estoque - CEREJEIRA', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 30);
+
+    const tableData = Array.isArray(products) ? products.map((p: any) => [
+      p.sku,
+      p.name,
+      p.category,
+      `${p.stock} ${p.unit}`,
+      `R$ ${p.price.toFixed(2)}`,
+      p.stock <= p.minStock ? 'BAIXO' : 'NORMAL'
+    ]) : [];
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['SKU', 'Nome', 'Categoria', 'Estoque', 'Preço', 'Status']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [20, 20, 20] },
+      styles: { fontSize: 9 }
+    });
+
+    doc.save('relatorio-estoque.pdf');
+    toast.success('PDF gerado com sucesso!');
+  };
 
   return (
     <div className="space-y-8">
@@ -118,6 +169,14 @@ export default function Inventory() {
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
           />
         </div>
+        <button onClick={handleExportCSV} className="btn-zinc">
+          <FileSpreadsheet className="w-5 h-5" />
+          CSV
+        </button>
+        <button onClick={handleExportPDF} className="btn-zinc">
+          <FileText className="w-5 h-5" />
+          PDF
+        </button>
         <button className="btn-zinc">
           <Filter className="w-5 h-5" />
           Filtros
@@ -145,7 +204,7 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
-              {filteredProducts?.map((product: any) => (
+              {Array.isArray(filteredProducts) && filteredProducts.map((product: any) => (
                 <tr key={product.id} className="hover:bg-zinc-800/30 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -218,7 +277,7 @@ export default function Inventory() {
 
         {/* Mobile Cards */}
         <div className="md:hidden divide-y divide-zinc-800">
-          {filteredProducts?.map((product: any) => (
+          {Array.isArray(filteredProducts) && filteredProducts.map((product: any) => (
             <div key={product.id} className="p-4 space-y-4">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
@@ -552,7 +611,7 @@ export default function Inventory() {
             </div>
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="space-y-4">
-                {stockHistory?.map((move: any) => (
+                {Array.isArray(stockHistory) && stockHistory.map((move: any) => (
                   <div key={move.id} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-xl border border-zinc-800">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${

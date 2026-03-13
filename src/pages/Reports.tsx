@@ -7,11 +7,19 @@ import {
   ArrowUp,
   Download,
   Calendar,
-  RotateCcw
+  RotateCcw,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Reports() {
   const queryClient = useQueryClient();
+  const [voidingId, setVoidingId] = useState<string | null>(null);
+
   const { data: sales } = useQuery({
     queryKey: ['sales'],
     queryFn: () => fetch('/api/sales').then(res => res.json())
@@ -23,14 +31,69 @@ export default function Reports() {
   });
 
   const voidMutation = useMutation({
-    mutationFn: (saleId: string) => 
-      fetch(`/api/sales/${saleId}/void`, { method: 'POST' }).then(res => res.json()),
+    mutationFn: async (saleId: string) => {
+      const res = await fetch(`/api/sales/${saleId}/void`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao estornar venda');
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Venda estornada com sucesso!');
+      setVoidingId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+      setVoidingId(null);
     }
   });
+
+  const handleExportCSV = () => {
+    window.location.href = '/api/reports/export/sales';
+    toast.success('Exportação iniciada...');
+  };
+
+  const handleExportPDF = () => {
+    if (!sales || sales.length === 0) {
+      toast.error('Não há dados para exportar');
+      return;
+    }
+
+    toast.info('Gerando PDF...');
+    
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(18);
+    doc.text('Relatório de Vendas - CEREJEIRA', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 30);
+    
+    // Table
+    const tableData = sales.map((sale: any) => [
+      sale.id.substring(0, 8).toUpperCase(),
+      new Date(sale.createdAt).toLocaleDateString(),
+      sale.customer?.name || 'Consumidor Final',
+      sale.paymentMethod,
+      `R$ ${sale.total.toFixed(2)}`,
+      sale.status === 'VOIDED' ? 'ESTORNADA' : 'CONCLUÍDA'
+    ]);
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['ID', 'Data', 'Cliente', 'Pagamento', 'Total', 'Status']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [20, 20, 20] },
+      styles: { fontSize: 9 }
+    });
+
+    doc.save('relatorio-vendas.pdf');
+    toast.success('PDF gerado com sucesso!');
+  };
 
   const activeSales = sales?.filter((s: any) => s.status !== 'VOIDED') || [];
   const totalRevenue = activeSales.reduce((acc: number, s: any) => acc + s.total, 0) || 0;
@@ -42,24 +105,32 @@ export default function Reports() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between no-print">
         <div>
           <h1 className="text-3xl font-bold text-white">Relatórios</h1>
           <p className="text-zinc-400 mt-1">Analise o desempenho da sua loja.</p>
         </div>
         <div className="flex gap-3">
-          <button className="btn-zinc">
-            <Calendar className="w-5 h-5" />
-            Últimos 30 dias
+          <button 
+            onClick={handleExportCSV}
+            className="btn-zinc"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            Exportar CSV
           </button>
           <button 
-            onClick={() => window.print()}
+            onClick={handleExportPDF}
             className="btn-zinc !text-white !bg-zinc-800"
           >
-            <Download className="w-5 h-5" />
+            <FileText className="w-5 h-5" />
             Exportar PDF
           </button>
         </div>
+      </div>
+
+      <div className="hidden print:block mb-8">
+        <h1 className="text-2xl font-bold text-black">Relatório de Vendas - Cerejeira</h1>
+        <p className="text-zinc-600">Gerado em: {new Date().toLocaleString()}</p>
       </div>
 
       {/* Summary Cards */}
@@ -100,7 +171,7 @@ export default function Reports() {
             </h2>
           </div>
           <div className="divide-y divide-zinc-800">
-            {sales?.slice(0, 10).map((sale: any) => (
+            {Array.isArray(sales) && sales.slice(0, 10).map((sale: any) => (
               <div key={sale.id} className={`p-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors ${sale.status === 'VOIDED' ? 'opacity-50' : ''}`}>
                 <div className="flex items-center gap-4">
                   <div>
@@ -119,17 +190,33 @@ export default function Reports() {
                     <p className="text-[10px] text-zinc-500 uppercase font-bold">{sale.paymentMethod}</p>
                   </div>
                   {sale.status !== 'VOIDED' && (
-                    <button 
-                      onClick={() => {
-                        if (confirm('Deseja realmente estornar esta venda? O estoque será devolvido.')) {
-                          voidMutation.mutate(sale.id);
-                        }
-                      }}
-                      className="p-2 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                      title="Estornar Venda"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {voidingId === sale.id ? (
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => voidMutation.mutate(sale.id)}
+                            disabled={voidMutation.isPending}
+                            className="px-2 py-1 text-[10px] font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+                          >
+                            {voidMutation.isPending ? '...' : 'Confirmar'}
+                          </button>
+                          <button 
+                            onClick={() => setVoidingId(null)}
+                            className="px-2 py-1 text-[10px] font-bold bg-zinc-800 text-zinc-400 rounded hover:bg-zinc-700 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setVoidingId(sale.id)}
+                          className="p-2 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                          title="Estornar Venda"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -144,7 +231,7 @@ export default function Reports() {
             <h3 className="text-white font-bold mb-2">Vendas por Categoria</h3>
             <p className="text-zinc-500 text-sm max-w-xs">Desempenho de cada categoria de produto em valor vendido.</p>
             <div className="mt-8 w-full space-y-3">
-              {Object.entries(stats?.categoryStats || {}).map(([cat, val]: any, i) => {
+              {stats?.categoryStats && typeof stats.categoryStats === 'object' && !Array.isArray(stats.categoryStats) && Object.entries(stats.categoryStats).map(([cat, val]: any, i) => {
                 const percentage = categoryTotal > 0 ? (val / categoryTotal) * 100 : 0;
                 const colors = ['bg-cherry', 'bg-blue-500', 'bg-purple-500', 'bg-emerald-500'];
                 return (
@@ -173,7 +260,7 @@ export default function Reports() {
             <h3 className="text-white font-bold mb-2">Métodos de Pagamento</h3>
             <p className="text-zinc-500 text-sm max-w-xs">Distribuição das formas de pagamento.</p>
             <div className="mt-8 w-full space-y-3">
-              {stats?.salesByPayment?.map((p: any, i: number) => {
+              {Array.isArray(stats?.salesByPayment) && stats.salesByPayment.map((p: any, i: number) => {
                 const percentage = paymentTotal > 0 ? ((p._sum.total || 0) / paymentTotal) * 100 : 0;
                 const colors = ['bg-cherry', 'bg-blue-500', 'bg-amber-500', 'bg-emerald-500', 'bg-indigo-500'];
                 return (

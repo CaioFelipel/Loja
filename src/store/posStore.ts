@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Product } from '@prisma/client';
+import type { Product } from '@prisma/client';
 
 interface CartItem {
   product: Product;

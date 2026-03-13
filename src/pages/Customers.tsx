@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { 
   Plus, 
   Search, 
@@ -9,8 +10,12 @@ import {
   Calendar,
   ChevronRight,
   MessageSquare,
-  X
+  X,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Customers() {
   const queryClient = useQueryClient();
@@ -39,8 +44,12 @@ export default function Customers() {
       }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Cliente adicionado com sucesso!');
       setShowAddModal(false);
       setNewCustomer({ name: '', email: '', phone: '', code: '', address: '', observations: '' });
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     }
   });
 
@@ -49,11 +58,51 @@ export default function Customers() {
     addMutation.mutate(newCustomer);
   };
 
-  const filteredCustomers = customers?.filter((c: any) => 
+  const filteredCustomers = Array.isArray(customers) ? customers.filter((c: any) => 
     c.name.toLowerCase().includes(search.toLowerCase()) || 
     c.email?.toLowerCase().includes(search.toLowerCase()) ||
     c.phone?.includes(search)
-  );
+  ) : [];
+
+  const handleExportCSV = () => {
+    window.location.href = '/api/reports/export/customers';
+    toast.success('Exportação CSV iniciada...');
+  };
+
+  const handleExportPDF = () => {
+    if (!customers || customers.length === 0) {
+      toast.error('Não há dados para exportar');
+      return;
+    }
+
+    toast.info('Gerando PDF...');
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Lista de Clientes - CEREJEIRA', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 30);
+
+    const tableData = Array.isArray(customers) ? customers.map((c: any) => [
+      c.code || '-',
+      c.name,
+      c.phone || '-',
+      c.email || '-',
+      new Date(c.createdAt).toLocaleDateString()
+    ]) : [];
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['Código', 'Nome', 'Telefone', 'Email', 'Cadastro']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [20, 20, 20] },
+      styles: { fontSize: 9 }
+    });
+
+    doc.save('clientes.pdf');
+    toast.success('PDF gerado com sucesso!');
+  };
 
   return (
     <div className="space-y-8">
@@ -71,15 +120,25 @@ export default function Customers() {
         </button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nome, email ou telefone..."
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
-        />
+      <div className="flex gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome, email ou telefone..."
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
+          />
+        </div>
+        <button onClick={handleExportCSV} className="btn-zinc">
+          <FileSpreadsheet className="w-5 h-5" />
+          CSV
+        </button>
+        <button onClick={handleExportPDF} className="btn-zinc">
+          <FileText className="w-5 h-5" />
+          PDF
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

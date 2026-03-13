@@ -133,7 +133,7 @@ export default function Dashboard() {
             <button className="text-xs text-zinc-500 hover:text-zinc-300 uppercase tracking-wider font-bold">Ver Tudo</button>
           </div>
           <div className="divide-y divide-zinc-800">
-            {logs?.map((log: any) => (
+            {Array.isArray(logs) && logs.map((log: any) => (
               <div key={log.id} className="p-4 flex items-center gap-4 hover:bg-zinc-800/50 transition-colors">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${
                   log.action.includes('CREATE') ? 'bg-cherry/10 text-cherry' :
@@ -152,7 +152,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
-            {!logs?.length && (
+            {(!Array.isArray(logs) || logs.length === 0) && (
               <div className="p-12 text-center text-zinc-500 italic">Nenhuma atividade registrada.</div>
             )}
           </div>

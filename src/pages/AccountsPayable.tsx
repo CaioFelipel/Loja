@@ -88,7 +88,7 @@ export default function AccountsPayable() {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {accounts?.map((account: any) => (
+        {Array.isArray(accounts) && accounts.map((account: any) => (
           <div key={account.id} className={`bg-zinc-900 border ${account.status === 'PAID' ? 'border-zinc-800 opacity-60' : 'border-zinc-800'} rounded-2xl p-4 lg:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group transition-all`}>
             <div className="flex items-center gap-4 lg:gap-6">
               <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center shrink-0 ${

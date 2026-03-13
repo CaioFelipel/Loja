@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePOSStore } from '../store/posStore';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { 
   Search, 
   Plus, 
@@ -24,7 +25,7 @@ import {
   Wallet,
   Coins
 } from 'lucide-react';
-import { Product, Customer } from '@prisma/client';
+import type { Product, Customer } from '@prisma/client';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -46,6 +47,7 @@ export default function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showMoneyInput, setShowMoneyInput] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   
   // Local state for modals
   const [tempShipping, setTempShipping] = useState(0);
@@ -77,7 +79,7 @@ export default function POS() {
     queryFn: () => fetch('/api/customers').then(res => res.json())
   });
 
-  const { data: session } = useQuery({
+  const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ['cashier-session'],
     queryFn: () => fetch('/api/cashier/session').then(res => res.json())
   });
@@ -97,13 +99,17 @@ export default function POS() {
       setLastSale(data);
       setShowPaymentModal(false);
       setShowReceipt(true);
+      toast.success('Venda finalizada com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     }
   });
 
   const filteredProducts = useMemo(() => {
-    if (!products) return [];
+    if (!Array.isArray(products)) return [];
     return products.filter((p: Product) => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       p.sku.toLowerCase().includes(searchTerm.toLowerCase())
@@ -111,7 +117,8 @@ export default function POS() {
   }, [products, searchTerm]);
 
   const selectedCustomer = useMemo(() => {
-    return customers?.find((c: Customer) => c.id === customerId);
+    if (!Array.isArray(customers)) return null;
+    return customers.find((c: Customer) => c.id === customerId);
   }, [customers, customerId]);
 
   const handleFinalize = () => {
@@ -142,6 +149,32 @@ export default function POS() {
     setReceivedAmount('');
   };
 
+  const closeCashierMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/cashier/close', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao fechar caixa');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cashier-session'] });
+      toast.success('Caixa fechado com sucesso!');
+      navigate('/');
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    }
+  });
+
+  if (sessionLoading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center p-6">
+        <div className="w-12 h-12 border-4 border-cherry border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-zinc-500 animate-pulse">Carregando PDV...</p>
+      </div>
+    );
+  }
+
   if (!session) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-6">
@@ -162,14 +195,6 @@ export default function POS() {
     );
   }
 
-  const closeCashierMutation = useMutation({
-    mutationFn: () => fetch('/api/cashier/close', { method: 'POST' }).then(res => res.json()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cashier-session'] });
-      navigate('/');
-    }
-  });
-
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
@@ -188,18 +213,34 @@ export default function POS() {
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all text-sm lg:text-base"
               />
             </div>
-            <button 
-              disabled={closeCashierMutation.isPending}
-              onClick={() => {
-                if (confirm('Deseja realmente fechar o caixa?')) {
-                  closeCashierMutation.mutate();
-                }
-              }}
-              className="px-4 lg:px-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-red-500 font-bold hover:bg-red-500/10 transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
-            >
-              <X className="w-5 h-5" />
-              <span className="hidden sm:inline">{closeCashierMutation.isPending ? 'Fechando...' : 'Fechar Caixa'}</span>
-            </button>
+            <div className="flex gap-2">
+              {showCloseConfirm ? (
+                <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-2xl p-1">
+                  <button 
+                    onClick={() => closeCashierMutation.mutate()}
+                    disabled={closeCashierMutation.isPending}
+                    className="px-3 py-2 bg-red-500 text-white text-xs font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50"
+                  >
+                    {closeCashierMutation.isPending ? '...' : 'Confirmar Fechamento'}
+                  </button>
+                  <button 
+                    onClick={() => setShowCloseConfirm(false)}
+                    className="px-3 py-2 text-zinc-400 text-xs font-bold hover:bg-zinc-800 rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  disabled={closeCashierMutation.isPending}
+                  onClick={() => setShowCloseConfirm(true)}
+                  className="px-4 lg:px-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-red-500 font-bold hover:bg-red-500/10 transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                  <span className="hidden sm:inline">Fechar Caixa</span>
+                </button>
+              )}
+            </div>
             <button 
               onClick={() => navigate('/dashboard')}
               className="px-4 lg:px-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-400 font-bold hover:bg-zinc-800 transition-all flex items-center gap-2 whitespace-nowrap"
@@ -223,7 +264,7 @@ export default function POS() {
 
         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map((product: any) => {
+            {Array.isArray(filteredProducts) && filteredProducts.map((product: any) => {
               const inCart = cart.find(item => item.product.id === product.id);
               return (
                 <div 
@@ -374,7 +415,7 @@ export default function POS() {
             <button 
               onClick={() => {
                 if (!customerId) {
-                  alert('É necessário selecionar um cliente para definir o valor da entrega.');
+                  toast.error('Selecione um cliente para definir a entrega');
                   setShowCustomerModal(true);
                 } else {
                   setShowShippingModal(true);
@@ -471,7 +512,7 @@ export default function POS() {
                   </div>
                   <span className="text-white font-bold">Venda Rápida (Sem Cliente)</span>
                 </button>
-                {customers?.map((c: any) => (
+                {Array.isArray(customers) && customers.map((c: any) => (
                   <button 
                     key={c.id}
                     onClick={() => { setCustomerId(c.id); setShowCustomerModal(false); }}
