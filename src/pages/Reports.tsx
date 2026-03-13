@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../lib/api';
 import { 
   BarChart3, 
   PieChart, 
@@ -22,17 +23,17 @@ export default function Reports() {
 
   const { data: sales } = useQuery({
     queryKey: ['sales'],
-    queryFn: () => fetch('/api/sales').then(res => res.json())
+    queryFn: () => apiFetch('/api/sales').then(res => res.json())
   });
 
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
-    queryFn: () => fetch('/api/reports/dashboard').then(res => res.json())
+    queryFn: () => apiFetch('/api/reports/dashboard').then(res => res.json())
   });
 
   const voidMutation = useMutation({
     mutationFn: async (saleId: string) => {
-      const res = await fetch(`/api/sales/${saleId}/void`, { method: 'POST' });
+      const res = await apiFetch(`/api/sales/${saleId}/void`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao estornar venda');
       return data;

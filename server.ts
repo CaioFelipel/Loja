@@ -30,9 +30,11 @@ async function startServer() {
   app.use(express.json());
   app.use(cookieParser());
 
+  const isProduction = process.env.NODE_ENV === 'production';
+
   // --- Middleware ---
   const authenticate = (req: any, res: any, next: any) => {
-    const token = req.cookies.token;
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
     if (!token) return res.status(401).json({ error: 'Não autorizado' });
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -67,10 +69,17 @@ async function startServer() {
       if (!valid) return res.status(401).json({ error: 'Credenciais inválidas' });
 
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '12h' });
-      res.cookie('token', token, { httpOnly: true, secure: true, sameSite: 'none' });
+      res.cookie('token', token, { 
+        httpOnly: true, 
+        secure: isProduction, 
+        sameSite: isProduction ? 'none' : 'lax' 
+      });
       
       await audit(user.id, 'LOGIN', 'USER');
-      res.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+      res.json({ 
+        user: { id: user.id, email: user.email, role: user.role, name: user.name },
+        token
+      });
     } catch (error: any) {
       console.error('Login error:', error);
       res.status(500).json({ error: 'Erro interno no servidor: ' + error.message });

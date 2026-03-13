@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { apiFetch } from '../lib/api';
 import { 
   Plus, 
   Search, 
@@ -32,14 +33,13 @@ export default function Customers() {
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => fetch('/api/customers').then(res => res.json())
+    queryFn: () => apiFetch('/api/customers').then(res => res.json())
   });
 
   const addMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch('/api/customers', {
+      apiFetch('/api/customers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       }).then(res => res.json()),
     onSuccess: () => {

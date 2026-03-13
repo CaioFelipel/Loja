@@ -33,6 +33,8 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+import { apiFetch } from '../lib/api';
+
 export default function POS() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,24 +73,23 @@ export default function POS() {
 
   const { data: products } = useQuery({
     queryKey: ['products'],
-    queryFn: () => fetch('/api/products').then(res => res.json())
+    queryFn: () => apiFetch('/api/products').then(res => res.json())
   });
 
   const { data: customers } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => fetch('/api/customers').then(res => res.json())
+    queryFn: () => apiFetch('/api/customers').then(res => res.json())
   });
 
   const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ['cashier-session'],
-    queryFn: () => fetch('/api/cashier/session').then(res => res.json())
+    queryFn: () => apiFetch('/api/cashier/session').then(res => res.json())
   });
 
   const saleMutation = useMutation({
     mutationFn: (saleData: any) => 
-      fetch('/api/sales', {
+      apiFetch('/api/sales', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saleData)
       }).then(async res => {
         const data = await res.json();
@@ -151,7 +152,7 @@ export default function POS() {
 
   const closeCashierMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/cashier/close', { method: 'POST' });
+      const res = await apiFetch('/api/cashier/close', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao fechar caixa');
       return data;

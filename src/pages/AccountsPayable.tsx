@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { apiFetch } from '../lib/api';
 import { 
   Plus, 
   Calendar, 
@@ -25,14 +26,13 @@ export default function AccountsPayable() {
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ['accounts-payable'],
-    queryFn: () => fetch('/api/accounts-payable').then(res => res.json())
+    queryFn: () => apiFetch('/api/accounts-payable').then(res => res.json())
   });
 
   const addMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch('/api/accounts-payable', {
+      apiFetch('/api/accounts-payable', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       }).then(res => res.json()),
     onSuccess: () => {
@@ -54,9 +54,8 @@ export default function AccountsPayable() {
 
   const payMutation = useMutation({
     mutationFn: ({ id, fromCashier }: { id: string, fromCashier: boolean }) =>
-      fetch(`/api/accounts-payable/${id}/pay`, {
+      apiFetch(`/api/accounts-payable/${id}/pay`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromCashier })
       }).then(res => res.json()),
     onSuccess: () => {

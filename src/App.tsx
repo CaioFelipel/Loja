@@ -12,6 +12,8 @@ import AccountsPayable from './pages/AccountsPayable';
 import Reports from './pages/Reports';
 import Layout from './components/Layout';
 
+import { apiFetch } from './lib/api';
+
 const queryClient = new QueryClient();
 
 function App() {
@@ -19,12 +21,16 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    apiFetch('/api/auth/me')
       .then((res) => res.json())
       .then((data) => {
         if (data.user) setUser(data.user);
       })
-      .finally(() => setLoading(loading => false));
+      .catch(() => {
+        // If fetch fails (e.g. 401), ensure user is null
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, [setUser]);
 
   if (loading) return <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center text-zinc-400">Carregando...</div>;

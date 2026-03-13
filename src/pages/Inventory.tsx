@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { apiFetch } from '../lib/api';
 import { 
   Plus, 
   Search, 
@@ -38,14 +39,13 @@ export default function Inventory() {
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['products'],
-    queryFn: () => fetch('/api/products').then(res => res.json())
+    queryFn: () => apiFetch('/api/products').then(res => res.json())
   });
 
   const addMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch('/api/products', {
+      apiFetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       }).then(res => res.json()),
     onSuccess: () => {
@@ -68,9 +68,8 @@ export default function Inventory() {
 
   const editMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch(`/api/products/${data.id}`, {
+      apiFetch(`/api/products/${data.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       }).then(res => res.json()),
     onSuccess: () => {
@@ -86,7 +85,7 @@ export default function Inventory() {
 
   const { data: stockHistory } = useQuery({
     queryKey: ['stock-history', selectedProduct?.id],
-    queryFn: () => fetch(`/api/products/${selectedProduct.id}/history`).then(res => res.json()),
+    queryFn: () => apiFetch(`/api/products/${selectedProduct.id}/history`).then(res => res.json()),
     enabled: !!selectedProduct && showHistoryModal
   });
 

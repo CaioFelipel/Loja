@@ -24,6 +24,9 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
 
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
       setUser(data.user);
     } catch (err: any) {
       setError(err.message);
