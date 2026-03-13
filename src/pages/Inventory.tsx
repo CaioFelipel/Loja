@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { apiFetch } from '../lib/api';
 
 export default function Inventory() {
   const queryClient = useQueryClient();
@@ -38,12 +39,12 @@ export default function Inventory() {
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['products'],
-    queryFn: () => fetch('/api/products').then(res => res.json())
+    queryFn: () => apiFetch('/api/products').then(res => res.json())
   });
 
   const addMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch('/api/products', {
+      apiFetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -68,7 +69,7 @@ export default function Inventory() {
 
   const editMutation = useMutation({
     mutationFn: (data: any) => 
-      fetch(`/api/products/${data.id}`, {
+      apiFetch(`/api/products/${data.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -86,7 +87,7 @@ export default function Inventory() {
 
   const { data: stockHistory } = useQuery({
     queryKey: ['stock-history', selectedProduct?.id],
-    queryFn: () => fetch(`/api/products/${selectedProduct.id}/history`).then(res => res.json()),
+    queryFn: () => apiFetch(`/api/products/${selectedProduct.id}/history`).then(res => res.json()),
     enabled: !!selectedProduct && showHistoryModal
   });
 

@@ -18,6 +18,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../lib/api';
 
 export default function Layout() {
   const { user, logout } = useAuthStore();
@@ -38,12 +39,12 @@ export default function Layout() {
 
   const { data: session } = useQuery({
     queryKey: ['cashier-session'],
-    queryFn: () => fetch('/api/cashier/session').then(res => res.json()),
+    queryFn: () => apiFetch('/api/cashier/session').then(res => res.json()),
     refetchInterval: 30000
   });
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await apiFetch('/api/auth/logout', { method: 'POST' });
     logout();
     navigate('/login');
   };

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePOSStore } from '../store/posStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { 
+import {
   Search, 
   Plus, 
   Minus, 
@@ -25,6 +25,7 @@ import {
   Wallet,
   Coins
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 import type { Product, Customer } from '@prisma/client';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -71,22 +72,22 @@ export default function POS() {
 
   const { data: products } = useQuery({
     queryKey: ['products'],
-    queryFn: () => fetch('/api/products').then(res => res.json())
+    queryFn: () => apiFetch('/api/products').then(res => res.json())
   });
 
   const { data: customers } = useQuery({
     queryKey: ['customers'],
-    queryFn: () => fetch('/api/customers').then(res => res.json())
+    queryFn: () => apiFetch('/api/customers').then(res => res.json())
   });
 
   const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ['cashier-session'],
-    queryFn: () => fetch('/api/cashier/session').then(res => res.json())
+    queryFn: () => apiFetch('/api/cashier/session').then(res => res.json())
   });
 
   const saleMutation = useMutation({
     mutationFn: (saleData: any) => 
-      fetch('/api/sales', {
+      apiFetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saleData)
@@ -151,7 +152,7 @@ export default function POS() {
 
   const closeCashierMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/cashier/close', { method: 'POST' });
+      const res = await apiFetch('/api/cashier/close', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao fechar caixa');
       return data;

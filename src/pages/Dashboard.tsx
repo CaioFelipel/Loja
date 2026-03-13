@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   TrendingUp, 
   Package, 
   AlertTriangle, 
@@ -12,6 +12,7 @@ import {
   X,
   Banknote
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,22 +22,22 @@ export default function Dashboard() {
 
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
-    queryFn: () => fetch('/api/reports/dashboard').then(res => res.json())
+    queryFn: () => apiFetch('/api/reports/dashboard').then(res => res.json())
   });
 
   const { data: session } = useQuery({
     queryKey: ['cashier-session'],
-    queryFn: () => fetch('/api/cashier/session').then(res => res.json())
+    queryFn: () => apiFetch('/api/cashier/session').then(res => res.json())
   });
 
   const { data: logs } = useQuery({
     queryKey: ['audit-logs'],
-    queryFn: () => fetch('/api/audit-logs').then(res => res.json())
+    queryFn: () => apiFetch('/api/audit-logs').then(res => res.json())
   });
 
   const openCashierMutation = useMutation({
     mutationFn: (balance: number) => 
-      fetch('/api/cashier/open', {
+      apiFetch('/api/cashier/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ openingBalance: balance })
@@ -49,7 +50,7 @@ export default function Dashboard() {
   });
 
   const closeCashierMutation = useMutation({
-    mutationFn: () => fetch('/api/cashier/close', { method: 'POST' }).then(res => res.json()),
+    mutationFn: () => apiFetch('/api/cashier/close', { method: 'POST' }).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashier-session'] });
     }

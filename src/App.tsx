@@ -11,6 +11,7 @@ import Customers from './pages/Customers';
 import AccountsPayable from './pages/AccountsPayable';
 import Reports from './pages/Reports';
 import Layout from './components/Layout';
+import { apiFetch } from './lib/api';
 
 const queryClient = new QueryClient();
 
@@ -19,7 +20,7 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    apiFetch('/api/auth/me')
       .then((res) => res.json())
       .then((data) => {
         if (data.user) setUser(data.user);
