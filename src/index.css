@@ -78,56 +78,21 @@
   }
 }
 
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  
-  body {
-    background: white !important;
-    color: black !important;
-  }
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
 
-  .bg-zinc-900, .bg-zinc-950, .bg-zinc-800 {
-    background: white !important;
-    border: 1px solid #eee !important;
-    box-shadow: none !important;
-  }
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  .text-white, .text-zinc-100, .text-zinc-200 {
-    color: black !important;
-  }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
 
-  .text-zinc-400, .text-zinc-500, .text-zinc-600 {
-    color: #666 !important;
-  }
-
-  .border-zinc-800, .border-zinc-700 {
-    border-color: #eee !important;
-  }
-
-  aside, header, nav, button {
-    display: none !important;
-  }
-
-  main {
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100% !important;
-    overflow: visible !important;
-  }
-
-  .grid {
-    display: block !important;
-  }
-
-  .grid > div {
-    margin-bottom: 2rem !important;
-    page-break-inside: avoid !important;
-  }
-
-  canvas {
-    max-width: 100% !important;
-    height: auto !important;
-  }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

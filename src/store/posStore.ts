@@ -8,13 +8,14 @@ interface CartItem {
 }
 
 interface Payment {
-  method: 'DINHEIRO' | 'PIX' | 'CARTAO' | 'CHEQUE' | 'OUTROS';
+  method: 'DINHEIRO' | 'PIX' | 'CARTAO' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO' | 'CHEQUE' | 'OUTROS';
   amount: number;
 }
 
 interface POSState {
   cart: CartItem[];
   discount: number;
+  discountType: 'VALUE' | 'PERCENTAGE';
   shipping: number;
   observation: string;
   showObservationOnReceipt: boolean;
@@ -24,7 +25,7 @@ interface POSState {
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
-  setDiscount: (discount: number) => void;
+  setDiscount: (discount: number, type?: 'VALUE' | 'PERCENTAGE') => void;
   setShipping: (shipping: number) => void;
   setObservation: (observation: string) => void;
   setShowObservationOnReceipt: (show: boolean) => void;
@@ -34,6 +35,7 @@ interface POSState {
   clearPOS: () => void;
   
   getTotal: () => number;
+  getDiscountAmount: () => number;
   getSubtotal: () => number;
   getRemainingBalance: () => number;
 }
@@ -41,6 +43,7 @@ interface POSState {
 export const usePOSStore = create<POSState>((set, get) => ({
   cart: [],
   discount: 0,
+  discountType: 'VALUE',
   shipping: 0,
   observation: '',
   showObservationOnReceipt: false,
@@ -80,7 +83,10 @@ export const usePOSStore = create<POSState>((set, get) => ({
     });
   },
 
-  setDiscount: (discount) => set({ discount }),
+  setDiscount: (discount, type) => set((state) => ({ 
+    discount, 
+    discountType: type || state.discountType 
+  })),
   setShipping: (shipping) => set({ shipping }),
   setObservation: (observation) => set({ observation }),
   setShowObservationOnReceipt: (showObservationOnReceipt) => set({ showObservationOnReceipt }),
@@ -97,6 +103,7 @@ export const usePOSStore = create<POSState>((set, get) => ({
   clearPOS: () => set({ 
     cart: [], 
     discount: 0, 
+    discountType: 'VALUE',
     shipping: 0, 
     observation: '', 
     showObservationOnReceipt: false, 
@@ -108,8 +115,17 @@ export const usePOSStore = create<POSState>((set, get) => ({
     return get().cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   },
 
+  getDiscountAmount: () => {
+    const { discount, discountType } = get();
+    const subtotal = get().getSubtotal();
+    if (discountType === 'PERCENTAGE') {
+      return (subtotal * discount) / 100;
+    }
+    return discount;
+  },
+
   getTotal: () => {
-    return get().getSubtotal() - get().discount + get().shipping;
+    return get().getSubtotal() - get().getDiscountAmount() + get().shipping;
   },
 
   getRemainingBalance: () => {

@@ -23,6 +23,10 @@ function getPrisma() {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-lash-key';
 
+if (!process.env.DATABASE_URL) {
+  console.warn('AVISO: DATABASE_URL não encontrada no ambiente. Certifique-se de configurar as variáveis no menu Settings.');
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
@@ -60,7 +64,12 @@ async function startServer() {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const result = LoginSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados de login inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const user = await getPrisma().user.findUnique({ where: { email: result.data.email } });
       if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -123,7 +132,12 @@ async function startServer() {
   app.post('/api/products', authenticate, async (req: any, res) => {
     try {
       const result = ProductSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados do produto inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const product = await getPrisma().product.create({ 
         data: {
@@ -141,7 +155,12 @@ async function startServer() {
   app.put('/api/products/:id', authenticate, async (req: any, res) => {
     try {
       const result = ProductSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados do produto inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const product = await getPrisma().product.update({ 
         where: { id: req.params.id }, 
@@ -198,7 +217,12 @@ async function startServer() {
   app.post('/api/customers', authenticate, async (req: any, res) => {
     try {
       const result = CustomerSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados do cliente inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const customer = await getPrisma().customer.create({ data: result.data as any });
       await audit(req.user.id, 'CREATE', 'CUSTOMER', customer);
@@ -224,7 +248,12 @@ async function startServer() {
   app.post('/api/cashier/open', authenticate, async (req: any, res) => {
     try {
       const result = CashierOpenSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados de abertura de caixa inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const active = await getPrisma().cashierSession.findFirst({ where: { status: 'OPEN' } });
       if (active) return res.status(400).json({ error: 'Já existe um caixa aberto' });
@@ -266,7 +295,12 @@ async function startServer() {
   app.post('/api/cashier/transaction', authenticate, async (req: any, res) => {
     try {
       const result = CashierTransactionSchema.extend({ type: z.enum(['SUPRIMENTO', 'SANGRIA']) }).safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados da transação inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const session = await getPrisma().cashierSession.findFirst({ where: { status: 'OPEN' } });
       if (!session) return res.status(400).json({ error: 'Caixa fechado' });
@@ -297,7 +331,12 @@ async function startServer() {
   app.post('/api/sales', authenticate, async (req: any, res) => {
     try {
       const result = SaleSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados da venda inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const session = await getPrisma().cashierSession.findFirst({ where: { status: 'OPEN' } });
       if (!session) return res.status(400).json({ error: 'Caixa fechado. Abra o caixa para vender.' });
@@ -473,7 +512,12 @@ async function startServer() {
   app.post('/api/accounts-payable', authenticate, async (req: any, res) => {
     try {
       const result = AccountsPayableSchema.safeParse(req.body);
-      if (!result.success) return res.status(400).json({ error: result.error.issues });
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: 'Dados da conta a pagar inválidos',
+          details: result.error.issues.map(i => i.message).join(', ')
+        });
+      }
 
       const account = await getPrisma().accountsPayable.create({
         data: {
@@ -554,31 +598,105 @@ async function startServer() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const salesToday = await getPrisma().sale.aggregate({
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const last7Days = new Date(today);
+      last7Days.setDate(last7Days.getDate() - 7);
+
+      const last30Days = new Date(today);
+      last30Days.setDate(last30Days.getDate() - 30);
+
+      const range = req.query.range as string || 'today';
+      let startDate = today;
+      if (range === 'yesterday') startDate = yesterday;
+      if (range === '7d') startDate = last7Days;
+      if (range === '30d') startDate = last30Days;
+
+      // Stats for the selected range
+      const salesStats = await getPrisma().sale.aggregate({
         where: { 
-          createdAt: { gte: today },
+          createdAt: { gte: startDate },
           status: { not: 'VOIDED' }
         },
         _sum: { total: true },
         _count: true
       });
 
-      const lowStock = await getPrisma().product.count({
+      const totalRevenue = salesStats._sum.total || 0;
+      const salesCount = salesStats._count || 0;
+      const averageTicket = salesCount > 0 ? totalRevenue / salesCount : 0;
+
+      // Gross Profit (Revenue - Cost of Goods Sold)
+      const saleItems = await getPrisma().saleItem.findMany({
+        where: { 
+          sale: { 
+            createdAt: { gte: startDate },
+            status: { not: 'VOIDED' }
+          } 
+        },
+        include: { product: true }
+      });
+
+      let totalCost = 0;
+      saleItems.forEach(item => {
+        totalCost += (item.product.costPrice || 0) * item.quantity;
+      });
+      const grossProfit = totalRevenue - totalCost;
+
+      // Best Selling Product
+      const bestSelling = await getPrisma().saleItem.groupBy({
+        by: ['productId'],
+        where: { 
+          sale: { 
+            createdAt: { gte: startDate },
+            status: { not: 'VOIDED' }
+          } 
+        },
+        _sum: { quantity: true },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 1
+      });
+
+      let bestProduct = null;
+      if (bestSelling.length > 0) {
+        bestProduct = await getPrisma().product.findUnique({
+          where: { id: bestSelling[0].productId },
+          select: { name: true }
+        });
+      }
+
+      // Low Stock
+      const lowStockCount = await getPrisma().product.count({
         where: { stock: { lte: getPrisma().product.fields.minStock } }
       });
 
+      const lowStockProducts = await getPrisma().product.findMany({
+        where: { stock: { lte: getPrisma().product.fields.minStock } },
+        take: 5
+      });
+
+      // Active Products
+      const activeProductsCount = await getPrisma().product.count();
+
+      // Pending Payables
       const pendingPayables = await getPrisma().accountsPayable.aggregate({
         where: { status: 'PENDING' },
         _sum: { amount: true }
       });
 
+      // Category Stats
       const salesByCategory = await getPrisma().saleItem.groupBy({
         by: ['productId'],
-        where: { sale: { status: { not: 'VOIDED' } } },
+        where: { 
+          sale: { 
+            createdAt: { gte: startDate },
+            status: { not: 'VOIDED' }
+          } 
+        },
         _sum: { quantity: true, price: true },
       });
 
-      // Get product categories for the grouped items
       const products = await getPrisma().product.findMany({
         select: { id: true, category: true }
       });
@@ -591,19 +709,92 @@ async function startServer() {
         }
       });
 
+      // Sales by User
+      const salesWithSessions = await getPrisma().sale.findMany({
+        where: { 
+          createdAt: { gte: startDate },
+          status: { not: 'VOIDED' }
+        },
+        select: { 
+          total: true,
+          session: {
+            select: {
+              userId: true,
+              user: {
+                select: { name: true }
+              }
+            }
+          }
+        }
+      });
+
+      const userStatsMap: Record<string, { userName: string, total: number, count: number }> = {};
+      salesWithSessions.forEach(sale => {
+        const userId = sale.session.userId;
+        const userName = sale.session.user.name;
+        if (!userStatsMap[userId]) {
+          userStatsMap[userId] = { userName, total: 0, count: 0 };
+        }
+        userStatsMap[userId].total += sale.total;
+        userStatsMap[userId].count += 1;
+      });
+
+      const userStats = Object.values(userStatsMap);
+
+      // History for charts (last 7 days by default)
+      const historyStart = new Date(today);
+      historyStart.setDate(historyStart.getDate() - 7);
+
+      const salesHistory = await getPrisma().sale.findMany({
+        where: { 
+          createdAt: { gte: historyStart },
+          status: { not: 'VOIDED' }
+        },
+        select: { createdAt: true, total: true }
+      });
+
+      // Group history by day
+      const dailyHistory: Record<string, { date: string, sales: number, revenue: number }> = {};
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        dailyHistory[dateStr] = { date: dateStr, sales: 0, revenue: 0 };
+      }
+
+      salesHistory.forEach(sale => {
+        const dateStr = sale.createdAt.toISOString().split('T')[0];
+        if (dailyHistory[dateStr]) {
+          dailyHistory[dateStr].sales += 1;
+          dailyHistory[dateStr].revenue += sale.total;
+        }
+      });
+
+      const chartData = Object.values(dailyHistory).sort((a, b) => a.date.localeCompare(b.date));
+
       const salesByPayment = await getPrisma().sale.groupBy({
         by: ['paymentMethod'],
-        where: { status: { not: 'VOIDED' } },
+        where: { 
+          createdAt: { gte: startDate },
+          status: { not: 'VOIDED' } 
+        },
         _sum: { total: true },
         _count: true
       });
 
       res.json({
-        salesToday: salesToday._sum.total || 0,
-        salesCountToday: salesToday._count || 0,
-        lowStockCount: lowStock,
+        salesToday: totalRevenue,
+        salesCountToday: salesCount,
+        averageTicket,
+        grossProfit,
+        bestProduct: bestProduct?.name || 'Nenhum',
+        lowStockCount,
+        lowStockProducts,
+        activeProductsCount,
         pendingPayables: pendingPayables._sum.amount || 0,
         categoryStats,
+        userStats,
+        chartData,
         salesByPayment
       });
     } catch (error: any) {

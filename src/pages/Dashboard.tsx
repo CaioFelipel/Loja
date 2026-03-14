@@ -8,11 +8,25 @@ import {
   AlertTriangle, 
   CreditCard,
   ArrowUpRight,
-  ArrowDownRight,
   Activity,
   X,
-  Banknote
+  Banknote,
+  DollarSign,
+  ShoppingCart,
+  Percent,
+  Star
 } from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  AreaChart,
+  Area
+} from 'recharts';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -62,64 +76,162 @@ export default function Dashboard() {
 
   const cards = [
     { 
-      label: 'Vendas Hoje', 
+      label: 'Faturamento Hoje', 
       value: `R$ ${stats?.salesToday?.toFixed(2) || '0.00'}`, 
       sub: `${stats?.salesCountToday || 0} vendas realizadas`,
-      icon: TrendingUp,
+      icon: DollarSign,
       color: 'text-cherry',
       bg: 'bg-cherry/10'
     },
     { 
-      label: 'Estoque Baixo', 
-      value: stats?.lowStockCount || 0, 
-      sub: 'Produtos abaixo do mínimo',
-      icon: AlertTriangle,
+      label: 'Ticket Médio', 
+      value: `R$ ${stats?.averageTicket?.toFixed(2) || '0.00'}`, 
+      sub: 'Valor médio por venda',
+      icon: TrendingUp,
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10'
+    },
+    { 
+      label: 'Lucro Bruto', 
+      value: `R$ ${stats?.grossProfit?.toFixed(2) || '0.00'}`, 
+      sub: 'Receita - Custo',
+      icon: Percent,
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500/10'
+    },
+    { 
+      label: 'Mais Vendido', 
+      value: stats?.bestProduct || 'Nenhum', 
+      sub: 'Produto destaque',
+      icon: Star,
       color: 'text-amber-500',
       bg: 'bg-amber-500/10'
     },
     { 
-      label: 'Contas a Pagar', 
-      value: `R$ ${stats?.pendingPayables?.toFixed(2) || '0.00'}`, 
-      sub: 'Total pendente',
-      icon: CreditCard,
+      label: 'Estoque Baixo', 
+      value: stats?.lowStockCount || 0, 
+      sub: 'Produtos em alerta',
+      icon: AlertTriangle,
       color: 'text-red-500',
       bg: 'bg-red-500/10'
     },
     { 
       label: 'Produtos Ativos', 
-      value: '15', 
+      value: stats?.activeProductsCount || 0, 
       sub: 'No catálogo',
       icon: Package,
-      color: 'text-blue-500',
-      bg: 'bg-blue-500/10'
+      color: 'text-indigo-500',
+      bg: 'bg-indigo-500/10'
     },
   ];
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white">Bem-vindo, Lash Designer!</h1>
-        <p className="text-zinc-400 mt-1">Aqui está o resumo da sua loja hoje.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+          <p className="text-zinc-400 mt-1">Resumo do desempenho da sua loja.</p>
+        </div>
+        <div className="flex gap-3">
+          {!session ? (
+            <button 
+              onClick={() => setShowOpenCashier(true)}
+              className="btn-cherry"
+            >
+              <Banknote className="w-5 h-5" />
+              Abrir Caixa
+            </button>
+          ) : (
+            <button 
+              onClick={() => navigate('/pos')}
+              className="btn-cherry"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              Ir ao PDV
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {cards.map((card, i) => {
           const Icon = card.icon;
           return (
-            <div key={i} className="bg-zinc-900 border border-zinc-800 p-4 lg:p-6 rounded-2xl shadow-sm">
-              <div className="flex items-center justify-between mb-3 lg:mb-4">
-                <div className={`p-2 lg:p-3 rounded-xl ${card.bg}`}>
-                  <Icon className={`w-5 h-5 lg:w-6 lg:h-6 ${card.color}`} />
+            <div key={i} className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl shadow-sm hover:border-zinc-700 transition-colors">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`p-2 rounded-xl ${card.bg}`}>
+                  <Icon className={`w-5 h-5 ${card.color}`} />
                 </div>
-                <ArrowUpRight className="w-4 h-4 text-zinc-600" />
               </div>
-              <p className="text-zinc-400 text-xs lg:text-sm font-medium">{card.label}</p>
-              <h3 className="text-xl lg:text-2xl font-bold text-white mt-1">{card.value}</h3>
-              <p className="text-zinc-500 text-[10px] lg:text-xs mt-2">{card.sub}</p>
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider">{card.label}</p>
+              <h3 className="text-lg font-bold text-white mt-1 truncate" title={String(card.value)}>{card.value}</h3>
+              <p className="text-zinc-600 text-[10px] mt-1">{card.sub}</p>
             </div>
           );
         })}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Revenue Chart */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-bold text-white">Faturamento (Últimos 7 dias)</h2>
+            <DollarSign className="w-5 h-5 text-zinc-500" />
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats?.chartData || []}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ff4d94" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ff4d94" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#71717a" 
+                  fontSize={10} 
+                  tickFormatter={(val) => new Date(val).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                />
+                <YAxis stroke="#71717a" fontSize={10} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px' }}
+                  itemStyle={{ color: '#ff4d94', fontWeight: 'bold' }}
+                />
+                <Area type="monotone" dataKey="revenue" name="Receita" stroke="#ff4d94" fillOpacity={1} fill="url(#colorRevenue)" strokeWidth={3} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Sales Count Chart */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-bold text-white">Vendas (Últimos 7 dias)</h2>
+            <ShoppingCart className="w-5 h-5 text-zinc-500" />
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats?.chartData || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#71717a" 
+                  fontSize={10}
+                  tickFormatter={(val) => new Date(val).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                />
+                <YAxis stroke="#71717a" fontSize={10} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '12px' }}
+                  itemStyle={{ color: '#3b82f6', fontWeight: 'bold' }}
+                />
+                <Bar dataKey="sales" name="Vendas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -130,10 +242,10 @@ export default function Dashboard() {
               <Activity className="w-5 h-5 text-cherry" />
               <h2 className="font-bold text-white">Atividade Recente</h2>
             </div>
-            <button className="text-xs text-zinc-500 hover:text-zinc-300 uppercase tracking-wider font-bold">Ver Tudo</button>
+            <button onClick={() => navigate('/reports')} className="text-xs text-zinc-500 hover:text-zinc-300 uppercase tracking-wider font-bold">Ver Relatórios</button>
           </div>
           <div className="divide-y divide-zinc-800">
-            {Array.isArray(logs) && logs.map((log: any) => (
+            {Array.isArray(logs) && logs.slice(0, 10).map((log: any) => (
               <div key={log.id} className="p-4 flex items-center gap-4 hover:bg-zinc-800/50 transition-colors">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${
                   log.action.includes('CREATE') ? 'bg-cherry/10 text-cherry' :
@@ -158,57 +270,36 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Low Stock Alert */}
         <div className="space-y-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <h2 className="font-bold text-white mb-4">Ações Rápidas</h2>
-            <div className="grid grid-cols-1 gap-3">
-              {!session ? (
-                <button 
-                  onClick={() => setShowOpenCashier(true)}
-                  className="btn-zinc !justify-between !text-sm !font-medium !px-4 group"
-                >
-                  Abrir Caixa
-                  <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ) : (
-                <>
-                  <button 
-                    onClick={() => navigate('/pos')}
-                    className="btn-cherry !justify-between !text-sm !font-medium !px-4 group"
-                  >
-                    Caixa Aberto - Ir ao PDV
-                    <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                  <button 
-                    disabled={closeCashierMutation.isPending}
-                    onClick={() => {
-                      if (confirm('Deseja realmente fechar o caixa?')) {
-                        closeCashierMutation.mutate();
-                      }
-                    }}
-                    className="btn-zinc !justify-between !text-sm !font-medium !px-4 group border-red-500/50 hover:bg-red-500/10 text-red-500"
-                  >
-                    {closeCashierMutation.isPending ? 'Fechando...' : 'Fechar Caixa'}
-                    <X className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                </>
-              )}
-              <button 
-                onClick={() => navigate('/pos')}
-                className="btn-zinc !justify-between !text-sm !font-medium !px-4 group"
-              >
-                Nova Venda
-                <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-              <button 
-                onClick={() => navigate('/inventory')}
-                className="btn-zinc !justify-between !text-sm !font-medium !px-4 group"
-              >
-                Cadastrar Produto
-                <ArrowUpRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-white">Estoque Baixo</h2>
+              <AlertTriangle className="w-5 h-5 text-red-500" />
             </div>
+            <div className="space-y-4">
+              {stats?.lowStockProducts?.map((product: any) => (
+                <div key={product.id} className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-xl">
+                  <div>
+                    <p className="text-sm font-bold text-white">{product.name}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase">{product.category}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-red-500">{product.stock} {product.unit}</p>
+                    <p className="text-[10px] text-zinc-600">Mín: {product.minStock}</p>
+                  </div>
+                </div>
+              ))}
+              {(!stats?.lowStockProducts || stats.lowStockProducts.length === 0) && (
+                <p className="text-center text-zinc-600 text-sm py-4 italic">Tudo em dia com o estoque!</p>
+              )}
+            </div>
+            <button 
+              onClick={() => navigate('/inventory')}
+              className="w-full mt-6 btn-zinc !text-xs !py-2"
+            >
+              Ver Inventário Completo
+            </button>
           </div>
 
           <div className="bg-cherry/10 border border-cherry/20 rounded-2xl p-6">

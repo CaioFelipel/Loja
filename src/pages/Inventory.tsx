@@ -13,8 +13,14 @@ import {
   ArrowUpDown,
   X,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Image as ImageIcon,
+  RefreshCw,
+  Trash2,
+  Camera
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -24,11 +30,13 @@ export default function Inventory() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [newProduct, setNewProduct] = useState({
     name: '',
     sku: '',
     category: 'COLAS',
+    description: '',
     stock: 0,
     minStock: 5,
     price: 0,
@@ -36,6 +44,37 @@ export default function Inventory() {
     unit: 'UN',
     photo: ''
   });
+
+  const generateSKU = (isEdit = false) => {
+    const random = Math.floor(1000 + Math.random() * 9000);
+    const sku = `PROD-${random}`;
+    if (isEdit) {
+      setSelectedProduct({ ...selectedProduct, sku });
+    } else {
+      setNewProduct({ ...newProduct, sku });
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      if (isEdit) {
+        setSelectedProduct({ ...selectedProduct, photo: base64String });
+      } else {
+        setNewProduct({ ...newProduct, photo: base64String });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['products'],
@@ -56,6 +95,7 @@ export default function Inventory() {
         name: '',
         sku: '',
         category: 'COLAS',
+        description: '',
         stock: 0,
         minStock: 5,
         price: 0,
@@ -82,12 +122,37 @@ export default function Inventory() {
       toast.error(error.message);
     }
   });
+  
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => 
+      apiFetch(`/api/products/${id}`, {
+        method: 'DELETE'
+      }).then(res => {
+        if (!res.ok) throw new Error('Erro ao excluir produto. Verifique se existem vendas vinculadas.');
+        return res.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Produto excluído com sucesso!');
+      setShowEditModal(false);
+      setSelectedProduct(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    }
+  });
 
   const { data: stockHistory } = useQuery({
     queryKey: ['stock-history', selectedProduct?.id],
     queryFn: () => apiFetch(`/api/products/${selectedProduct.id}/history`).then(res => res.json()),
     enabled: !!selectedProduct && showHistoryModal
   });
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setSelectedProduct(null);
+    setShowDeleteConfirm(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,24 +207,46 @@ export default function Inventory() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Estoque</h1>
-          <p className="text-zinc-400 mt-1">Gerencie seus produtos e movimentações.</p>
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-cherry/10 rounded-2xl flex items-center justify-center text-cherry">
+            <Package className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Estoque</h1>
+            <p className="text-zinc-500 text-sm">Gerencie seus produtos e movimentações</p>
+          </div>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="btn-cherry"
-        >
-          <Plus className="w-5 h-5" />
-          Novo Produto
-        </button>
+        
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={handleExportCSV}
+            className="flex-1 md:flex-none px-4 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl font-bold hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 border border-zinc-700"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            CSV
+          </button>
+          <button 
+            onClick={handleExportPDF}
+            className="flex-1 md:flex-none px-4 py-2.5 bg-zinc-800 text-zinc-300 rounded-xl font-bold hover:bg-zinc-700 transition-all flex items-center justify-center gap-2 border border-zinc-700"
+          >
+            <FileText className="w-4 h-4" />
+            PDF
+          </button>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="flex-1 md:flex-none px-6 py-2.5 bg-cherry text-white rounded-xl font-bold hover:bg-cherry-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-cherry/20"
+          >
+            <Plus className="w-5 h-5" />
+            Novo Produto
+          </button>
+        </div>
       </div>
 
       {/* Filters & Search */}
-      <div className="flex gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1 relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-cherry transition-colors" />
           <input
             type="text"
             value={search}
@@ -168,22 +255,16 @@ export default function Inventory() {
             className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
           />
         </div>
-        <button onClick={handleExportCSV} className="btn-zinc">
-          <FileSpreadsheet className="w-5 h-5" />
-          CSV
-        </button>
-        <button onClick={handleExportPDF} className="btn-zinc">
-          <FileText className="w-5 h-5" />
-          PDF
-        </button>
-        <button className="btn-zinc">
-          <Filter className="w-5 h-5" />
-          Filtros
-        </button>
-        <button className="btn-zinc">
-          <ArrowUpDown className="w-5 h-5" />
-          Ordenar
-        </button>
+        <div className="flex gap-2">
+          <button className="flex-1 md:flex-none px-4 py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-white hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
+            <Filter className="w-5 h-5" />
+            Filtros
+          </button>
+          <button className="flex-1 md:flex-none px-4 py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl hover:text-white hover:border-zinc-700 transition-all flex items-center justify-center gap-2">
+            <ArrowUpDown className="w-5 h-5" />
+            Ordenar
+          </button>
+        </div>
       </div>
 
       {/* Table / Cards */}
@@ -275,73 +356,84 @@ export default function Inventory() {
         </div>
 
         {/* Mobile Cards */}
-        <div className="md:hidden divide-y divide-zinc-800">
-          {Array.isArray(filteredProducts) && filteredProducts.map((product: any) => (
-            <div key={product.id} className="p-4 space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-                  {product.photo ? (
-                    <img src={product.photo} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <Package className="w-6 h-6 text-zinc-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-white font-bold truncate">{product.name}</h3>
-                    <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded shrink-0">
-                      {product.category}
-                    </span>
+        <div className="md:hidden">
+          <div className="grid grid-cols-1 gap-4">
+            <AnimatePresence mode="popLayout">
+              {Array.isArray(filteredProducts) && filteredProducts.map((product: any) => (
+                <motion.div 
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  key={product.id} 
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center overflow-hidden shrink-0 border border-zinc-700">
+                      {product.photo ? (
+                        <img src={product.photo} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <Package className="w-8 h-8 text-zinc-600" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-white font-bold truncate">{product.name}</h3>
+                        <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-zinc-700 shrink-0">
+                          {product.category}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500">SKU: {product.sku}</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-zinc-500">{product.sku}</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-zinc-800/30 p-3 rounded-xl">
-                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Estoque</p>
-                  <p className={`font-bold ${product.stock <= product.minStock ? 'text-red-500' : 'text-white'}`}>
-                    {product.stock} {product.unit}
-                  </p>
-                </div>
-                <div className="bg-zinc-800/30 p-3 rounded-xl">
-                  <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Preço Venda</p>
-                  <p className="text-cherry font-bold">R$ {product.price.toFixed(2)}</p>
-                </div>
-              </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-zinc-800/50 p-3 rounded-xl border border-zinc-800">
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Estoque</p>
+                      <p className={`font-bold ${product.stock <= product.minStock ? 'text-red-500' : 'text-white'}`}>
+                        {product.stock} {product.unit}
+                      </p>
+                    </div>
+                    <div className="bg-zinc-800/50 p-3 rounded-xl border border-zinc-800">
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase mb-1">Preço Venda</p>
+                      <p className="text-emerald-500 font-bold text-lg">R$ {product.price.toFixed(2)}</p>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-between pt-2">
-                {product.stock <= product.minStock ? (
-                  <div className="flex items-center gap-1 text-red-500 text-[10px] font-bold uppercase">
-                    <AlertCircle className="w-3 h-3" />
-                    Estoque Baixo
+                  <div className="flex items-center justify-between pt-2">
+                    {product.stock <= product.minStock ? (
+                      <div className="flex items-center gap-1 text-red-500 text-[10px] font-bold uppercase">
+                        <AlertCircle className="w-3 h-3" />
+                        Estoque Baixo
+                      </div>
+                    ) : (
+                      <div className="text-emerald-500 text-[10px] font-bold uppercase">Estoque Normal</div>
+                    )}
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          setSelectedProduct(product);
+                          setShowEditModal(true);
+                        }}
+                        className="p-2.5 text-zinc-400 hover:text-white bg-zinc-800 rounded-xl border border-zinc-700"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSelectedProduct(product);
+                          setShowHistoryModal(true);
+                        }}
+                        className="p-2.5 text-zinc-400 hover:text-white bg-zinc-800 rounded-xl border border-zinc-700"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-emerald-500 text-[10px] font-bold uppercase">Estoque Normal</div>
-                )}
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => {
-                      setSelectedProduct(product);
-                      setShowEditModal(true);
-                    }}
-                    className="p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-lg"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setSelectedProduct(product);
-                      setShowHistoryModal(true);
-                    }}
-                    className="p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-lg"
-                  >
-                    <History className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         </div>
 
         {isLoading && (
@@ -353,300 +445,552 @@ export default function Inventory() {
       </div>
 
       {/* Add Product Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-lg shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Novo Produto</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-zinc-500 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">URL da Foto</label>
-                  <input 
-                    type="text"
-                    value={newProduct.photo}
-                    onChange={e => setNewProduct({...newProduct, photo: e.target.value})}
-                    placeholder="https://exemplo.com/foto.jpg"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Nome do Produto</label>
-                  <input 
-                    required
-                    type="text"
-                    value={newProduct.name}
-                    onChange={e => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">SKU</label>
-                  <input 
-                    required
-                    type="text"
-                    value={newProduct.sku}
-                    onChange={e => setNewProduct({...newProduct, sku: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Categoria</label>
-                  <select 
-                    value={newProduct.category}
-                    onChange={e => setNewProduct({...newProduct, category: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none"
-                  >
-                    <option value="COLAS">Colas</option>
-                    <option value="CILIOS">Cílios</option>
-                    <option value="ACESSORIOS">Acessórios</option>
-                    <option value="OUTROS">Outros</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Preço Venda</label>
-                  <input 
-                    required
-                    type="number"
-                    step="0.01"
-                    value={newProduct.price}
-                    onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Preço Custo</label>
-                  <input 
-                    required
-                    type="number"
-                    step="0.01"
-                    value={newProduct.costPrice}
-                    onChange={e => setNewProduct({...newProduct, costPrice: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Estoque Inicial</label>
-                  <input 
-                    required
-                    type="number"
-                    value={newProduct.stock}
-                    onChange={e => setNewProduct({...newProduct, stock: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Estoque Mínimo</label>
-                  <input 
-                    required
-                    type="number"
-                    value={newProduct.minStock}
-                    onChange={e => setNewProduct({...newProduct, minStock: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button 
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 btn-zinc"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  disabled={addMutation.isPending}
-                  className="flex-1 btn-cherry"
-                >
-                  {addMutation.isPending ? 'Salvando...' : 'Salvar Produto'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Product Modal */}
-      {showEditModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Editar Produto</h2>
-              <button onClick={() => setShowEditModal(false)} className="text-zinc-500 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <form 
-              onSubmit={(e) => {
-                e.preventDefault();
-                editMutation.mutate(selectedProduct);
-              }} 
-              className="p-6 space-y-4"
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">URL da Foto</label>
-                  <input 
-                    type="text"
-                    value={selectedProduct.photo || ''}
-                    onChange={e => setSelectedProduct({...selectedProduct, photo: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
+              <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-cherry/10 rounded-xl flex items-center justify-center text-cherry">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Novo Produto</h2>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Nome do Produto</label>
-                  <input 
-                    required
-                    type="text"
-                    value={selectedProduct.name}
-                    onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">SKU</label>
-                  <input 
-                    required
-                    type="text"
-                    value={selectedProduct.sku}
-                    onChange={e => setSelectedProduct({...selectedProduct, sku: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Categoria</label>
-                  <select 
-                    value={selectedProduct.category}
-                    onChange={e => setSelectedProduct({...selectedProduct, category: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none"
-                  >
-                    <option value="COLAS">Colas</option>
-                    <option value="CILIOS">Cílios</option>
-                    <option value="ACESSORIOS">Acessórios</option>
-                    <option value="OUTROS">Outros</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Preço Venda</label>
-                  <input 
-                    required
-                    type="number"
-                    step="0.01"
-                    value={selectedProduct.price}
-                    onChange={e => setSelectedProduct({...selectedProduct, price: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Preço Custo</label>
-                  <input 
-                    required
-                    type="number"
-                    step="0.01"
-                    value={selectedProduct.costPrice}
-                    onChange={e => setSelectedProduct({...selectedProduct, costPrice: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Estoque Atual</label>
-                  <input 
-                    required
-                    type="number"
-                    value={selectedProduct.stock}
-                    onChange={e => setSelectedProduct({...selectedProduct, stock: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1 text-left">Estoque Mínimo</label>
-                  <input 
-                    required
-                    type="number"
-                    value={selectedProduct.minStock}
-                    onChange={e => setSelectedProduct({...selectedProduct, minStock: Number(e.target.value)})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                  />
-                </div>
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button 
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 btn-zinc"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  disabled={editMutation.isPending}
-                  className="flex-1 btn-cherry"
-                >
-                  {editMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+                <button onClick={() => setShowAddModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-6 h-6" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* Stock History Modal */}
-      {showHistoryModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-white">Histórico de Estoque</h2>
-                <p className="text-zinc-500 text-sm">{selectedProduct.name}</p>
-              </div>
-              <button onClick={() => setShowHistoryModal(false)} className="text-zinc-500 hover:text-white">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              <div className="space-y-4">
-                {Array.isArray(stockHistory) && stockHistory.map((move: any) => (
-                  <div key={move.id} className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-xl border border-zinc-800">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                        move.type.includes('ENTRADA') ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
-                      }`}>
-                        {move.type.includes('ENTRADA') ? '+' : '-'}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">{move.type}</p>
-                        <p className="text-xs text-zinc-500">{move.reason}</p>
+              <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Image Section */}
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">Foto do Produto</label>
+                    <div className="relative group">
+                      <div className="aspect-square bg-zinc-800 rounded-2xl border-2 border-dashed border-zinc-700 flex flex-col items-center justify-center overflow-hidden transition-colors group-hover:border-cherry/50">
+                        {newProduct.photo ? (
+                          <>
+                            <img src={newProduct.photo} alt="Preview" className="w-full h-full object-cover" />
+                            <button 
+                              type="button"
+                              onClick={() => setNewProduct({ ...newProduct, photo: '' })}
+                              className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center text-zinc-500">
+                            <Camera className="w-10 h-10 mb-2" />
+                            <span className="text-xs">Clique para enviar</span>
+                          </div>
+                        )}
+                        <input 
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-bold ${move.type.includes('ENTRADA') ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {move.quantity} {selectedProduct.unit}
-                      </p>
-                      <p className="text-[10px] text-zinc-600">{new Date(move.createdAt).toLocaleString()}</p>
+                    <p className="text-[10px] text-zinc-500 mt-2 text-center">Formatos: JPG, PNG, WEBP (Máx 5MB)</p>
+                  </div>
+
+                  {/* Info Section */}
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Nome do Produto</label>
+                        <input 
+                          required
+                          type="text"
+                          value={newProduct.name}
+                          onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                          placeholder="Ex: Cílios Volume Russo Mix"
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">SKU / Código</label>
+                        <div className="relative">
+                          <input 
+                            required
+                            type="text"
+                            value={newProduct.sku}
+                            onChange={e => setNewProduct({...newProduct, sku: e.target.value})}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 pr-10"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => generateSKU()}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-zinc-500 hover:text-cherry transition-colors"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Categoria</label>
+                        <select 
+                          value={newProduct.category}
+                          onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                        >
+                          <option value="COLAS">Colas</option>
+                          <option value="CILIOS">Cílios</option>
+                          <option value="ACESSORIOS">Acessórios</option>
+                          <option value="OUTROS">Outros</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Unidade</label>
+                        <select 
+                          value={newProduct.unit}
+                          onChange={e => setNewProduct({...newProduct, unit: e.target.value})}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                        >
+                          <option value="UN">Unidade (UN)</option>
+                          <option value="PCT">Pacote (PCT)</option>
+                          <option value="CX">Caixa (CX)</option>
+                          <option value="ML">Mililitro (ML)</option>
+                          <option value="PAR">Par (PAR)</option>
+                        </select>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Descrição</label>
+                        <textarea 
+                          value={newProduct.description}
+                          onChange={e => setNewProduct({...newProduct, description: e.target.value})}
+                          rows={2}
+                          placeholder="Detalhes do produto..."
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 resize-none"
+                        />
+                      </div>
                     </div>
                   </div>
-                ))}
-                {!stockHistory?.length && (
-                  <div className="py-12 text-center text-zinc-500 italic">Nenhuma movimentação registrada.</div>
-                )}
-              </div>
-            </div>
-            <div className="p-6 border-t border-zinc-800 bg-zinc-800/30">
-              <button 
-                onClick={() => setShowHistoryModal(false)}
-                className="w-full btn-zinc"
-              >
-                Fechar
-              </button>
-            </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-zinc-800">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Preço Venda</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">R$</span>
+                      <input 
+                        required
+                        type="number"
+                        step="0.01"
+                        value={newProduct.price}
+                        onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Preço Custo</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">R$</span>
+                      <input 
+                        required
+                        type="number"
+                        step="0.01"
+                        value={newProduct.costPrice}
+                        onChange={e => setNewProduct({...newProduct, costPrice: Number(e.target.value)})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Estoque Inicial</label>
+                    <input 
+                      required
+                      type="number"
+                      value={newProduct.stock}
+                      onChange={e => setNewProduct({...newProduct, stock: Number(e.target.value)})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Estoque Mínimo</label>
+                    <input 
+                      required
+                      type="number"
+                      value={newProduct.minStock}
+                      onChange={e => setNewProduct({...newProduct, minStock: Number(e.target.value)})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="flex-1 px-4 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={addMutation.isPending}
+                    className="flex-1 px-4 py-3 bg-cherry text-white rounded-xl font-bold hover:bg-cherry-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {addMutation.isPending ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Salvar Produto'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* Edit Product Modal */}
+      <AnimatePresence>
+        {showEditModal && selectedProduct && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-cherry/10 rounded-xl flex items-center justify-center text-cherry">
+                    <Edit2 className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Editar Produto</h2>
+                </div>
+                <button onClick={handleCloseEditModal} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  editMutation.mutate(selectedProduct);
+                }} 
+                className="p-6 space-y-6 overflow-y-auto"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Image Section */}
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-zinc-400 mb-2">Foto do Produto</label>
+                    <div className="relative group">
+                      <div className="aspect-square bg-zinc-800 rounded-2xl border-2 border-dashed border-zinc-700 flex flex-col items-center justify-center overflow-hidden transition-colors group-hover:border-cherry/50">
+                        {selectedProduct.photo ? (
+                          <>
+                            <img src={selectedProduct.photo} alt="Preview" className="w-full h-full object-cover" />
+                            <button 
+                              type="button"
+                              onClick={() => setSelectedProduct({ ...selectedProduct, photo: '' })}
+                              className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center text-zinc-500">
+                            <Camera className="w-10 h-10 mb-2" />
+                            <span className="text-xs">Clique para enviar</span>
+                          </div>
+                        )}
+                        <input 
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, true)}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 mt-2 text-center">Formatos: JPG, PNG, WEBP (Máx 5MB)</p>
+                  </div>
+
+                  {/* Info Section */}
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Nome do Produto</label>
+                        <input 
+                          required
+                          type="text"
+                          value={selectedProduct.name}
+                          onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">SKU / Código</label>
+                        <div className="relative">
+                          <input 
+                            required
+                            type="text"
+                            value={selectedProduct.sku}
+                            onChange={e => setSelectedProduct({...selectedProduct, sku: e.target.value})}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 pr-10"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => generateSKU(true)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-zinc-500 hover:text-cherry transition-colors"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Categoria</label>
+                        <select 
+                          value={selectedProduct.category}
+                          onChange={e => setSelectedProduct({...selectedProduct, category: e.target.value})}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                        >
+                          <option value="COLAS">Colas</option>
+                          <option value="CILIOS">Cílios</option>
+                          <option value="ACESSORIOS">Acessórios</option>
+                          <option value="OUTROS">Outros</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Unidade</label>
+                        <select 
+                          value={selectedProduct.unit}
+                          onChange={e => setSelectedProduct({...selectedProduct, unit: e.target.value})}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                        >
+                          <option value="UN">Unidade (UN)</option>
+                          <option value="PCT">Pacote (PCT)</option>
+                          <option value="CX">Caixa (CX)</option>
+                          <option value="ML">Mililitro (ML)</option>
+                          <option value="PAR">Par (PAR)</option>
+                        </select>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-zinc-400 mb-1">Descrição</label>
+                        <textarea 
+                          value={selectedProduct.description || ''}
+                          onChange={e => setSelectedProduct({...selectedProduct, description: e.target.value})}
+                          rows={2}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50 resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-zinc-800">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Preço Venda</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">R$</span>
+                      <input 
+                        required
+                        type="number"
+                        step="0.01"
+                        value={selectedProduct.price}
+                        onChange={e => setSelectedProduct({...selectedProduct, price: Number(e.target.value)})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Preço Custo</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">R$</span>
+                      <input 
+                        required
+                        type="number"
+                        step="0.01"
+                        value={selectedProduct.costPrice}
+                        onChange={e => setSelectedProduct({...selectedProduct, costPrice: Number(e.target.value)})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Estoque Atual</label>
+                    <input 
+                      required
+                      type="number"
+                      value={selectedProduct.stock}
+                      onChange={e => setSelectedProduct({...selectedProduct, stock: Number(e.target.value)})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Estoque Mínimo</label>
+                    <input 
+                      required
+                      type="number"
+                      value={selectedProduct.minStock}
+                      onChange={e => setSelectedProduct({...selectedProduct, minStock: Number(e.target.value)})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <div className="flex-1 flex gap-3">
+                    {showDeleteConfirm ? (
+                      <div className="flex-1 flex gap-2 animate-in fade-in slide-in-from-left-2">
+                        <button 
+                          type="button"
+                          onClick={() => deleteMutation.mutate(selectedProduct.id)}
+                          className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all flex items-center justify-center gap-2"
+                        >
+                          Confirmar Exclusão
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="px-4 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-all"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button 
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(true)}
+                          disabled={deleteMutation.isPending}
+                          className="px-4 py-3 bg-red-500/10 text-red-500 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={handleCloseEditModal}
+                          className="flex-1 px-4 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-all"
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {!showDeleteConfirm && (
+                    <button 
+                      type="submit"
+                      disabled={editMutation.isPending}
+                      className="flex-1 px-4 py-3 bg-cherry text-white rounded-xl font-bold hover:bg-cherry-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {editMutation.isPending ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        'Salvar Alterações'
+                      )}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Stock History Modal */}
+      <AnimatePresence>
+        {showHistoryModal && selectedProduct && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 backdrop-blur-md sticky top-0 z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400">
+                    <History className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Histórico de Estoque</h2>
+                    <p className="text-zinc-500 text-sm truncate max-w-[300px]">{selectedProduct.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowHistoryModal(false)} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-all">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="space-y-3">
+                  {Array.isArray(stockHistory) && stockHistory.map((move: any) => (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      key={move.id} 
+                      className="flex items-center justify-between p-4 bg-zinc-800/30 rounded-2xl border border-zinc-800/50 hover:border-zinc-700 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${
+                          move.type.includes('ENTRADA') 
+                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                        }`}>
+                          {move.type.includes('ENTRADA') ? '+' : '-'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white group-hover:text-cherry transition-colors">{move.type}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">{move.reason || 'Sem observações'}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-base font-black ${move.type.includes('ENTRADA') ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {move.quantity} {selectedProduct.unit}
+                        </p>
+                        <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider mt-1">
+                          {new Date(move.createdAt).toLocaleDateString()} • {new Date(move.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {!stockHistory?.length && (
+                    <div className="py-20 text-center space-y-4">
+                      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto text-zinc-600">
+                        <History className="w-8 h-8" />
+                      </div>
+                      <p className="text-zinc-500 italic">Nenhuma movimentação registrada para este produto.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-zinc-800 bg-zinc-800/20">
+                <button 
+                  onClick={() => setShowHistoryModal(false)}
+                  className="w-full py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-all border border-zinc-700"
+                >
+                  Fechar Histórico
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

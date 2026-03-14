@@ -64,7 +64,7 @@ export const SaleItemSchema = z.object({
 });
 
 export const PaymentSchema = z.object({
-  method: z.enum(['DINHEIRO', 'PIX', 'CARTAO']),
+  method: z.enum(['DINHEIRO', 'PIX', 'CARTAO', 'CARTAO_CREDITO', 'CARTAO_DEBITO']),
   amount: z.number().min(0.01),
 });
 
