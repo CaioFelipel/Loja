@@ -32,15 +32,15 @@ export default function Inventory() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [newProduct, setNewProduct] = useState({
+  const [newProduct, setNewProduct] = useState<any>({
     name: '',
     sku: '',
     category: 'COLAS',
     description: '',
-    stock: 0,
-    minStock: 5,
-    price: 0,
-    costPrice: 0,
+    stock: '',
+    minStock: '5',
+    price: '',
+    costPrice: '',
     unit: 'UN',
     photo: ''
   });
@@ -86,7 +86,13 @@ export default function Inventory() {
       apiFetch('/api/products', {
         method: 'POST',
         body: JSON.stringify(data)
-      }).then(res => res.json()),
+      }).then(async res => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.details || err.error || 'Erro ao adicionar produto');
+        }
+        return res.json();
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Produto adicionado com sucesso!');
@@ -96,13 +102,16 @@ export default function Inventory() {
         sku: '',
         category: 'COLAS',
         description: '',
-        stock: 0,
-        minStock: 5,
-        price: 0,
-        costPrice: 0,
+        stock: '',
+        minStock: '5',
+        price: '',
+        costPrice: '',
         unit: 'UN',
         photo: ''
       });
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     }
   });
 
@@ -111,7 +120,13 @@ export default function Inventory() {
       apiFetch(`/api/products/${data.id}`, {
         method: 'PUT',
         body: JSON.stringify(data)
-      }).then(res => res.json()),
+      }).then(async res => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.details || err.error || 'Erro ao atualizar produto');
+        }
+        return res.json();
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success('Produto atualizado com sucesso!');
@@ -142,6 +157,27 @@ export default function Inventory() {
     }
   });
 
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const categories = Array.from(new Set([
+    'COLAS', 'CILIOS', 'ACESSORIOS', 'OUTROS',
+    ...(products?.map((p: any) => p.category) || [])
+  ])).sort();
+
+  const handleAddCategory = () => {
+    if (newCategoryName.trim()) {
+      const upperCategory = newCategoryName.trim().toUpperCase();
+      if (showAddModal) {
+        setNewProduct({ ...newProduct, category: upperCategory });
+      } else if (showEditModal) {
+        setSelectedProduct({ ...selectedProduct, category: upperCategory });
+      }
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+    }
+  };
+
   const { data: stockHistory } = useQuery({
     queryKey: ['stock-history', selectedProduct?.id],
     queryFn: () => apiFetch(`/api/products/${selectedProduct.id}/history`).then(res => res.json()),
@@ -156,7 +192,14 @@ export default function Inventory() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addMutation.mutate(newProduct);
+    const data = {
+      ...newProduct,
+      price: Number(newProduct.price) || 0,
+      costPrice: Number(newProduct.costPrice) || 0,
+      stock: Number(newProduct.stock) || 0,
+      minStock: Number(newProduct.minStock) || 0,
+    };
+    addMutation.mutate(data);
   };
 
   const filteredProducts = Array.isArray(products) ? products.filter((p: any) => 
@@ -538,16 +581,50 @@ export default function Inventory() {
 
                       <div>
                         <label className="block text-sm font-medium text-zinc-400 mb-1">Categoria</label>
-                        <select 
-                          value={newProduct.category}
-                          onChange={e => setNewProduct({...newProduct, category: e.target.value})}
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                        >
-                          <option value="COLAS">Colas</option>
-                          <option value="CILIOS">Cílios</option>
-                          <option value="ACESSORIOS">Acessórios</option>
-                          <option value="OUTROS">Outros</option>
-                        </select>
+                        {isAddingCategory ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={newCategoryName}
+                              onChange={e => setNewCategoryName(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+                              placeholder="Nova categoria..."
+                              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddCategory}
+                              className="px-3 bg-cherry text-white rounded-xl hover:bg-cherry-dark transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingCategory(false)}
+                              className="px-3 bg-zinc-700 text-zinc-300 rounded-xl hover:bg-zinc-600 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <select 
+                            value={newProduct.category}
+                            onChange={e => {
+                              if (e.target.value === 'ADD_NEW') {
+                                setIsAddingCategory(true);
+                              } else {
+                                setNewProduct({...newProduct, category: e.target.value});
+                              }
+                            }}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                          >
+                            {categories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="ADD_NEW" className="text-cherry font-bold">+ Adicionar Nova...</option>
+                          </select>
+                        )}
                       </div>
 
                       <div>
@@ -589,7 +666,8 @@ export default function Inventory() {
                         type="number"
                         step="0.01"
                         value={newProduct.price}
-                        onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setNewProduct({...newProduct, price: e.target.value})}
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                       />
                     </div>
@@ -603,7 +681,8 @@ export default function Inventory() {
                         type="number"
                         step="0.01"
                         value={newProduct.costPrice}
-                        onChange={e => setNewProduct({...newProduct, costPrice: Number(e.target.value)})}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setNewProduct({...newProduct, costPrice: e.target.value})}
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                       />
                     </div>
@@ -614,7 +693,8 @@ export default function Inventory() {
                       required
                       type="number"
                       value={newProduct.stock}
-                      onChange={e => setNewProduct({...newProduct, stock: Number(e.target.value)})}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
                       className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                     />
                   </div>
@@ -624,7 +704,8 @@ export default function Inventory() {
                       required
                       type="number"
                       value={newProduct.minStock}
-                      onChange={e => setNewProduct({...newProduct, minStock: Number(e.target.value)})}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setNewProduct({...newProduct, minStock: e.target.value})}
                       className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                     />
                   </div>
@@ -684,7 +765,14 @@ export default function Inventory() {
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
-                  editMutation.mutate(selectedProduct);
+                  const data = {
+                    ...selectedProduct,
+                    price: Number(selectedProduct.price) || 0,
+                    costPrice: Number(selectedProduct.costPrice) || 0,
+                    stock: Number(selectedProduct.stock) || 0,
+                    minStock: Number(selectedProduct.minStock) || 0,
+                  };
+                  editMutation.mutate(data);
                 }} 
                 className="p-6 space-y-6 overflow-y-auto"
               >
@@ -758,16 +846,50 @@ export default function Inventory() {
 
                       <div>
                         <label className="block text-sm font-medium text-zinc-400 mb-1">Categoria</label>
-                        <select 
-                          value={selectedProduct.category}
-                          onChange={e => setSelectedProduct({...selectedProduct, category: e.target.value})}
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
-                        >
-                          <option value="COLAS">Colas</option>
-                          <option value="CILIOS">Cílios</option>
-                          <option value="ACESSORIOS">Acessórios</option>
-                          <option value="OUTROS">Outros</option>
-                        </select>
+                        {isAddingCategory ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={newCategoryName}
+                              onChange={e => setNewCategoryName(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+                              placeholder="Nova categoria..."
+                              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddCategory}
+                              className="px-3 bg-cherry text-white rounded-xl hover:bg-cherry-dark transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingCategory(false)}
+                              className="px-3 bg-zinc-700 text-zinc-300 rounded-xl hover:bg-zinc-600 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <select 
+                            value={selectedProduct.category}
+                            onChange={e => {
+                              if (e.target.value === 'ADD_NEW') {
+                                setIsAddingCategory(true);
+                              } else {
+                                setSelectedProduct({...selectedProduct, category: e.target.value});
+                              }
+                            }}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
+                          >
+                            {categories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="ADD_NEW" className="text-cherry font-bold">+ Adicionar Nova...</option>
+                          </select>
+                        )}
                       </div>
 
                       <div>
@@ -808,7 +930,8 @@ export default function Inventory() {
                         type="number"
                         step="0.01"
                         value={selectedProduct.price}
-                        onChange={e => setSelectedProduct({...selectedProduct, price: Number(e.target.value)})}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setSelectedProduct({...selectedProduct, price: e.target.value})}
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                       />
                     </div>
@@ -822,7 +945,8 @@ export default function Inventory() {
                         type="number"
                         step="0.01"
                         value={selectedProduct.costPrice}
-                        onChange={e => setSelectedProduct({...selectedProduct, costPrice: Number(e.target.value)})}
+                        onFocus={e => e.target.select()}
+                        onChange={e => setSelectedProduct({...selectedProduct, costPrice: e.target.value})}
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                       />
                     </div>
@@ -833,7 +957,8 @@ export default function Inventory() {
                       required
                       type="number"
                       value={selectedProduct.stock}
-                      onChange={e => setSelectedProduct({...selectedProduct, stock: Number(e.target.value)})}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setSelectedProduct({...selectedProduct, stock: e.target.value})}
                       className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                     />
                   </div>
@@ -843,7 +968,8 @@ export default function Inventory() {
                       required
                       type="number"
                       value={selectedProduct.minStock}
-                      onChange={e => setSelectedProduct({...selectedProduct, minStock: Number(e.target.value)})}
+                      onFocus={e => e.target.select()}
+                      onChange={e => setSelectedProduct({...selectedProduct, minStock: e.target.value})}
                       className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cherry/50"
                     />
                   </div>

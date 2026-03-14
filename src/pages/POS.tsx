@@ -919,6 +919,7 @@ export default function POS() {
                   <input 
                     type="number" 
                     value={receivedAmount}
+                    onFocus={e => e.target.select()}
                     onChange={(e) => setReceivedAmount(e.target.value)}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-2xl pl-12 pr-4 py-5 text-white text-3xl font-black focus:outline-none focus:ring-2 focus:ring-cherry/50"
                     autoFocus

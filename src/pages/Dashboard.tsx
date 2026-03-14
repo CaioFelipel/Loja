@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { apiFetch } from '../lib/api';
 import { 
   TrendingUp, 
@@ -32,7 +33,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showOpenCashier, setShowOpenCashier] = useState(false);
-  const [openingBalance, setOpeningBalance] = useState(0);
+  const [openingBalance, setOpeningBalance] = useState<any>('');
 
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
@@ -54,11 +55,20 @@ export default function Dashboard() {
       apiFetch('/api/cashier/open', {
         method: 'POST',
         body: JSON.stringify({ openingBalance: balance })
-      }).then(res => res.json()),
+      }).then(async res => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Erro ao abrir caixa');
+        }
+        return res.json();
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashier-session'] });
       setShowOpenCashier(false);
       navigate('/pos');
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     }
   });
 
@@ -71,7 +81,7 @@ export default function Dashboard() {
 
   const handleOpenCashier = (e: React.FormEvent) => {
     e.preventDefault();
-    openCashierMutation.mutate(openingBalance);
+    openCashierMutation.mutate(Number(openingBalance) || 0);
   };
 
   const cards = [
@@ -336,7 +346,8 @@ export default function Dashboard() {
                   step="0.01"
                   autoFocus
                   value={openingBalance}
-                  onChange={e => setOpeningBalance(Number(e.target.value))}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setOpeningBalance(e.target.value)}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 text-2xl font-bold text-white text-center focus:outline-none focus:ring-2 focus:ring-cherry/50"
                 />
               </div>

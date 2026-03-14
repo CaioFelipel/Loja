@@ -18,9 +18,9 @@ export const UserRole = {
 export const ProductSchema = z.object({
   sku: z.string().min(1, 'SKU é obrigatório'),
   name: z.string().min(1, 'Nome é obrigatório'),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
   category: z.string().min(1, 'Categoria é obrigatória'),
-  brand: z.string().optional(),
+  brand: z.string().optional().nullable(),
   price: z.number().min(0, 'Preço deve ser positivo'),
   costPrice: z.number().min(0, 'Preço de custo deve ser positivo'),
   stock: z.number().default(0),
@@ -29,7 +29,7 @@ export const ProductSchema = z.object({
   photo: z.string().optional().nullable(),
   expiryDate: z.string().optional().nullable(),
   batch: z.string().optional().nullable(),
-  observations: z.string().optional(),
+  observations: z.string().optional().nullable(),
 });
 
 export type ProductInput = z.infer<typeof ProductSchema>;
@@ -38,10 +38,10 @@ export type ProductInput = z.infer<typeof ProductSchema>;
 export const CustomerSchema = z.object({
   code: z.string().optional().nullable(),
   name: z.string().min(1, 'Nome é obrigatório'),
-  phone: z.string().optional(),
-  email: z.string().email('Email inválido').optional().or(z.literal('')),
+  phone: z.string().optional().nullable(),
+  email: z.string().email('Email inválido').optional().or(z.literal('')).nullable(),
   address: z.string().optional().nullable(),
-  observations: z.string().optional(),
+  observations: z.string().optional().nullable(),
 });
 
 export type CustomerInput = z.infer<typeof CustomerSchema>;
